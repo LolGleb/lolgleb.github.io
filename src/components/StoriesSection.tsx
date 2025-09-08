@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { getArticlesByCategory } from '../db/articlesDb';
 
 interface Article {
-  id: number;
+  id: string;
   title: string;
   excerpt?: string;
   category: string;
@@ -21,19 +22,36 @@ type TabType = 'hype' | 'latest';
 
 export function StoriesSection() {
   const [activeTab, setActiveTab] = useState<TabType>('hype');
+  const [dbArticles, setDbArticles] = useState<Article[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const fromDb = await getArticlesByCategory('Stories');
+      const mapped: Article[] = fromDb.map((a) => ({
+        id: a.id,
+        title: a.title,
+        excerpt: a.excerpt,
+        category: a.category,
+        image: a.image,
+        publishedAt: a.publishedAt,
+      }));
+      setDbArticles(mapped);
+    })();
+  }, []);
 
   // Function to get filtered articles based on active tab
   const getFilteredArticles = (category: CategoryData, activeTab: TabType) => {
-    const allArticles = [category.mainArticle, ...category.sideArticles];
+    const staticArticles = [category.mainArticle, ...category.sideArticles];
+    const allArticles = [...dbArticles, ...staticArticles];
     
     if (activeTab === 'hype') {
-      // Hype: Editor's choice - manually curated
+      // Hype: Editor's choice - manually curated (keep static curated set)
       return {
         mainArticle: category.mainArticle,
         sideArticles: category.sideArticles
       };
     } else {
-      // Latest: Sort by date (newest first)
+      // Latest: Include DB articles and sort by date (newest first)
       const sortedArticles = [...allArticles].sort((a, b) => {
         const dateA = new Date(a.publishedAt);
         const dateB = new Date(b.publishedAt);
@@ -51,7 +69,7 @@ export function StoriesSection() {
     name: 'Stories',
     slug: 'stories',
     mainArticle: {
-      id: 10,
+      id: '10',
       title: 'The Psychology of Sock Colors: What Your Choice Really Says About You',
       excerpt: 'A deep dive into color theory, consumer behavior, and the subtle psychology behind our sock choices, backed by research from leading fashion psychologists.',
       category: 'Stories',
@@ -60,14 +78,14 @@ export function StoriesSection() {
     },
     sideArticles: [
       {
-        id: 11,
+        id: '11',
         title: 'Material Science: The Future of Sock Technology',
         category: 'Stories',
         image: 'https://images.unsplash.com/photo-1597137759489-f4d0b1fbc651?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdGhsZXRpYyUyMHNvY2tzJTIwcnVubmluZ3xlbnwxfHx8fDE3NTcwODMxMjN8MA&ixlib=rb-4.1.0&q=80&w=1080',
         publishedAt: 'Sep 1, 2025'
       },
       {
-        id: 12,
+        id: '12',
         title: 'The Economics of Sock Manufacturing',
         category: 'Stories',
         image: 'https://images.unsplash.com/photo-1514408171400-282d59fc544e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYXNoaW9uJTIwY29sbGFib3JhdGlvbiUyMHN0cmVldHdlYXJ8ZW58MXx8fHwxNzU3MDgzMTE4fDA&ixlib=rb-4.1.0&q=80&w=1080',

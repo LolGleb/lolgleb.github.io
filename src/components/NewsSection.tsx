@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { getArticlesByCategory } from '../db/articlesDb';
 
 interface Article {
-  id: number;
+  id: string;
   title: string;
   excerpt?: string;
   category: string;
@@ -21,19 +22,36 @@ type TabType = 'hype' | 'latest';
 
 export function NewsSection() {
   const [activeTab, setActiveTab] = useState<TabType>('hype');
+  const [dbArticles, setDbArticles] = useState<Article[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const fromDb = await getArticlesByCategory('News');
+      const mapped: Article[] = fromDb.map((a) => ({
+        id: a.id,
+        title: a.title,
+        excerpt: a.excerpt,
+        category: a.category,
+        image: a.image,
+        publishedAt: a.publishedAt,
+      }));
+      setDbArticles(mapped);
+    })();
+  }, []);
 
   // Function to get filtered articles based on active tab
   const getFilteredArticles = (category: CategoryData, activeTab: TabType) => {
-    const allArticles = [category.mainArticle, ...category.sideArticles];
+    const staticArticles = [category.mainArticle, ...category.sideArticles];
+    const allArticles = [...dbArticles, ...staticArticles];
     
     if (activeTab === 'hype') {
-      // Hype: Editor's choice - manually curated
+      // Hype: Editor's choice - manually curated (keep static curated set)
       return {
         mainArticle: category.mainArticle,
         sideArticles: category.sideArticles
       };
     } else {
-      // Latest: Sort by date (newest first)
+      // Latest: Include DB articles and sort by date (newest first)
       const sortedArticles = [...allArticles].sort((a, b) => {
         const dateA = new Date(a.publishedAt);
         const dateB = new Date(b.publishedAt);
@@ -51,7 +69,7 @@ export function NewsSection() {
     name: 'News',
     slug: 'news',
     mainArticle: {
-      id: 1,
+      id: '1',
       title: 'Street Style Tokyo: The Underground Sock Scene Explodes',
       excerpt: 'An in-depth look at how Japanese youth are redefining sock fashion with bold patterns, unconventional materials, and collaborative designs that are influencing global trends.',
       category: 'News',
@@ -60,14 +78,14 @@ export function NewsSection() {
     },
     sideArticles: [
       {
-        id: 2,
+        id: '2',
         title: 'Milan Fashion Week: Sock Trends to Watch',
         category: 'News',
         image: 'https://images.unsplash.com/photo-1580973757787-e22cdecb9cd5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZXNpZ25lciUyMHNvY2tzJTIwY29sb3JmdWx8ZW58MXx8fHwxNzU2OTgwMTY3fDA&ixlib=rb-4.1.0&q=80&w=1080',
         publishedAt: 'Sep 4, 2025'
       },
       {
-        id: 3,
+        id: '3',
         title: 'Sustainability Report: Eco-Friendly Materials Rise',
         category: 'News',
         image: 'https://images.unsplash.com/photo-1631180543602-727e1197619d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwc29ja3MlMjBwcm9kdWN0JTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzU2OTgwMTY2fDA&ixlib=rb-4.1.0&q=80&w=1080',

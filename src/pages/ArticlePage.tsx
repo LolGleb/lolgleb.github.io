@@ -1,11 +1,11 @@
 import { useParams, Navigate, Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { ReadingProgress } from '../components/ReadingProgress';
 import { ArticleEngagement } from '../components/ArticleEngagement';
 import { ArticleEngagementCompact } from '../components/ArticleEngagementCompact';
-import { getArticleById, mockArticles, mockComments } from '../data/mockData';
+import { getArticleById as getMockArticleById, mockArticles, mockComments } from '../data/mockData';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { ArticleGallery } from '../components/ArticleGallery';
 import { ShareBlock } from '../components/ShareBlock';
@@ -17,6 +17,7 @@ import { CommentsSection } from '../components/CommentsSection';
 import { ArticleGrid } from '../components/ArticleGrid';
 import { useEngagement } from '../contexts/EngagementContext';
 import { calculateReadingTime, formatReadingTime } from '../utils/readingTime';
+import { getArticleByIdAdmin, AdminArticle } from '../db/articlesDb';
 
 export function ArticlePage() {
   const { id } = useParams<{ id: string }>();
@@ -24,11 +25,104 @@ export function ArticlePage() {
   if (!id) {
     return <Navigate to="/404" replace />;
   }
-  
-  const article = getArticleById(id);
-  
+
+  // Try mock data first for legacy/static articles
+  const mockArticle = getMockArticleById(id);
+  const article = mockArticle;
+
+  // Also try to resolve admin-created article from client DB
+  const [adminArticle, setAdminArticle] = useState<AdminArticle | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const a = await getArticleByIdAdmin(id);
+        if (!cancelled) setAdminArticle(a ?? null);
+      } catch {
+        if (!cancelled) setAdminArticle(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  // If no mock article, check admin DB states
   if (!article) {
-    return <Navigate to="/404" replace />;
+    // Loading state while checking admin DB
+    if (adminArticle === undefined) {
+      return null;
+    }
+    // Not found anywhere
+    if (adminArticle === null) {
+      return <Navigate to="/404" replace />;
+    }
+
+    // Render simplified view for admin-created article
+    const a = adminArticle as AdminArticle;
+    const formattedDate = (() => {
+      try {
+        const d = new Date(a.publishedAt);
+        return isNaN(d.getTime()) ? a.publishedAt : d.toLocaleDateString();
+      } catch {
+        return a.publishedAt;
+      }
+    })();
+
+    return (
+      <>
+        <ReadingProgress />
+        <SEO 
+          title={`${a.title} | Ticket to Socks`}
+          description={a.excerpt}
+          keywords={`${a.category.toLowerCase()}, socks, fashion`}
+        />
+        <main className="min-h-screen bg-background">
+          <section className="min-h-screen flex items-center">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12 w-full">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 min-h-[60vh]">
+                <div className="lg:order-2 flex items-center">
+                  <div className="w-full h-[60vh] lg:h-auto lg:aspect-[4/5] overflow-hidden rounded-none lg:rounded-md">
+                    <ImageWithFallback src={a.image} alt={a.title} className="w-full h-full object-cover" />
+                  </div>
+                </div>
+                <div className="lg:order-1 space-y-6 lg:space-y-8 flex flex-col justify-center">
+                  <div className="flex items-center gap-4">
+                    <Link to="/" className="flex items-center text-foreground/60 hover:text-[#FF00A8] transition-colors">
+                      <ArrowLeft className="w-5 h-5" />
+                    </Link>
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="uppercase" style={{ color: '#FF00A8', fontFamily: 'var(--font-body)' }}>{a.category}</span>
+                      <span className="text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{formattedDate}</span>
+                    </div>
+                  </div>
+                  <h1 className="text-3xl lg:text-5xl leading-tight" style={{ fontFamily: 'var(--font-headlines)' }}>{a.title}</h1>
+                  {a.excerpt && (
+                    <p className="text-xl lg:text-2xl text-foreground/70 leading-relaxed">{a.excerpt}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="py-12 lg:py-16">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+              {a.content ? (
+                <div className="space-y-6 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                  <p style={{ whiteSpace: 'pre-line' }}>
+                    {a.content}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
+                  No additional content provided for this article.
+                </p>
+              )}
+            </div>
+          </section>
+        </main>
+      </>
+    );
   }
 
   // Get related articles - mix from same category and other articles

@@ -80,6 +80,16 @@ export function Header() {
             >
               About
             </Link>
+            <Link 
+              to="/admin" 
+              className={`transition-colors ${
+                isActive('/admin') 
+                  ? 'text-[#FF00A8]' 
+                  : 'text-foreground/80 hover:text-foreground'
+              }`}
+            >
+              Admin
+            </Link>
           </nav>
 
           {/* Search, Follow, Submit, User, and Menu */}
@@ -289,6 +299,17 @@ export function Header() {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 About
+              </Link>
+              <Link 
+                to="/admin" 
+                className={`block transition-colors ${
+                  isActive('/admin') 
+                    ? 'text-[#FF00A8]' 
+                    : 'text-foreground/80 hover:text-foreground'
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Admin
               </Link>
               
               {/* Mobile Follow Section */}
