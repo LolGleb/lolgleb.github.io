@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, ArrowRight } from 'lucide-react';
+import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { ImageWithFallback } from './figma/ImageWithFallback';
-import { mockBrands, brandCategories, getBrandsByCategory } from '../data/mockData';
 import { Brand } from '../types';
+import { getAllBrands, AdminBrand } from '../db/brandsDb';
+import { mockBrands, brandCategories, getBrandsByCategory } from '../data/mockData';
 import { categoryToSlug } from '../pages/BrandCategoryPage';
 
 type FilterType = 'madeIn' | 'price' | 'categories' | 'all';
@@ -80,16 +81,54 @@ export function BrandsSection({
   title = 'SOCK BRANDS',
   className = ''
 }: BrandsSectionProps) {
-  const [filterType, setFilterType] = useState<FilterType>(defaultFilter);
-  const [selectedFilters, setSelectedFilters] = useState<{
-    madeIn: string;
-    categories: string;
-    price: string;
-  }>({
-    madeIn: defaultFilter === 'madeIn' ? defaultSelection : '',
-    categories: defaultFilter === 'categories' ? defaultSelection : '',
-    price: defaultFilter === 'price' ? defaultSelection : ''
-  });
+  // Load brands from Admin DB (IndexedDB/localStorage) and render only those
+  const [dbBrands, setDbBrands] = useState<Brand[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const all: AdminBrand[] = await getAllBrands();
+        const mapped: Brand[] = all.map((b) => ({
+          id: b.id,
+          name: b.name,
+          logo: b.logo,
+          image: b.image || b.logo,
+          description: b.description,
+          website: b.website,
+        }));
+        setDbBrands(mapped);
+      } catch {
+        setDbBrands([]);
+      }
+    })();
+  }, []);
+
+  // Always render DB-backed brands on the homepage; placeholders are removed
+  return (
+    <section className={`py-8 lg:py-12 ${className}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl lg:text-3xl" style={{ fontFamily: 'var(--font-headlines)' }}>
+            {title} <span style={{ color: '#FF00A8', fontStyle: 'italic' }}>to</span>
+          </h2>
+          <Link to="/brands" className="text-sm hover:opacity-70" style={{ color: '#FF00A8', fontFamily: 'var(--font-body)' }}>
+            Ticket to Brands →
+          </Link>
+        </div>
+
+        {dbBrands.length > 0 ? (
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-4 lg:gap-6">
+            {dbBrands.slice(0, maxBrands).map((brand) => (
+              <NewBrandCard key={brand.id} brand={brand} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-10">
+            <p className="text-foreground/60">No brands yet. Add some in the Admin panel.</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
 
   // Filter brands based on current filter type and selections
   const getFilteredBrands = () => {

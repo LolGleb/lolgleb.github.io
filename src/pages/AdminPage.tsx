@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addArticle, AdminArticle, AdminArticleCategory, deleteArticle, generateId, getAllArticles } from '../db/articlesDb';
+import { addBrand, AdminBrand, deleteBrand as deleteBrandDb, generateBrandId, getAllBrands } from '../db/brandsDb';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Button } from '../components/ui/button';
@@ -20,6 +21,18 @@ export function AdminPage() {
   const [list, setList] = useState<AdminArticle[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Brands form state
+  const [brandName, setBrandName] = useState('');
+  const [brandLogo, setBrandLogo] = useState('');
+  const [brandImage, setBrandImage] = useState('');
+  const [brandDescription, setBrandDescription] = useState('');
+  const [brandWebsite, setBrandWebsite] = useState('');
+
+  const [brandLoading, setBrandLoading] = useState(false);
+  const [brandList, setBrandList] = useState<AdminBrand[]>([]);
+  const [brandError, setBrandError] = useState<string | null>(null);
+  const [brandSuccess, setBrandSuccess] = useState<string | null>(null);
 
   // Admin simple auth state
   const ADMIN_LS_KEY = 'tts_admin_auth';
@@ -51,9 +64,15 @@ export function AdminPage() {
     setList(all);
   }
 
+  async function refreshBrands() {
+    const all = await getAllBrands();
+    setBrandList(all);
+  }
+
   useEffect(() => {
     if (adminAuthed) {
       refreshList();
+      refreshBrands();
     }
   }, [adminAuthed]);
 
@@ -105,6 +124,51 @@ export function AdminPage() {
   async function onDelete(id: string) {
     await deleteArticle(id);
     await refreshList();
+  }
+
+  async function onDeleteBrand(id: string) {
+    await deleteBrandDb(id);
+    await refreshBrands();
+  }
+
+  async function onSubmitBrand(e: React.FormEvent) {
+    e.preventDefault();
+    setBrandError(null);
+    setBrandSuccess(null);
+
+    if (!brandName.trim()) {
+      setBrandError('Brand name is required');
+      return;
+    }
+    if (!brandLogo.trim() && !brandImage.trim()) {
+      setBrandError('Logo or Image URL is required');
+      return;
+    }
+
+    try {
+      setBrandLoading(true);
+      const brand: AdminBrand = {
+        id: generateBrandId(),
+        name: brandName.trim(),
+        logo: brandLogo.trim() || brandImage.trim(),
+        image: brandImage.trim() || undefined,
+        description: brandDescription.trim() || undefined,
+        website: brandWebsite.trim() || undefined,
+      };
+      await addBrand(brand);
+      setBrandSuccess('Brand added');
+      setBrandName('');
+      setBrandLogo('');
+      setBrandImage('');
+      setBrandDescription('');
+      setBrandWebsite('');
+      await refreshBrands();
+    } catch (err) {
+      console.error(err);
+      setBrandError('Failed to add brand');
+    } finally {
+      setBrandLoading(false);
+    }
   }
 
   function handleAdminLogin(e: React.FormEvent) {
@@ -222,6 +286,66 @@ export function AdminPage() {
             )}
           </div>
         ))}
+      </div>
+
+      <hr className="my-10" />
+      <h1 className="text-3xl mb-6" style={{ fontFamily: 'var(--font-headlines)' }}>Admin: Brands</h1>
+
+      <form onSubmit={onSubmitBrand} className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 border border-border rounded-lg p-4 md:p-6 bg-card mb-10">
+        <div className="md:col-span-2">
+          <label className="block text-sm mb-1">Name</label>
+          <Input value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Brand name" />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm mb-1">Logo URL</label>
+          <Input value={brandLogo} onChange={(e) => setBrandLogo(e.target.value)} placeholder="https://… (square logo)" />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm mb-1">Image URL (optional)</label>
+          <Input value={brandImage} onChange={(e) => setBrandImage(e.target.value)} placeholder="https://… (cover image)" />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm mb-1">Website (optional)</label>
+          <Input value={brandWebsite} onChange={(e) => setBrandWebsite(e.target.value)} placeholder="https://brand.com" />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm mb-1">Description (optional)</label>
+          <Textarea value={brandDescription} onChange={(e) => setBrandDescription(e.target.value)} placeholder="Short description" rows={4} />
+        </div>
+        <div className="md:col-span-2">
+          {brandError && <div className="text-red-500 text-sm mb-2">{brandError}</div>}
+          {brandSuccess && <div className="text-green-600 text-sm mb-2">{brandSuccess}</div>}
+          <Button type="submit" disabled={brandLoading}>
+            {brandLoading ? 'Saving…' : 'Add Brand'}
+          </Button>
+        </div>
+      </form>
+
+      <div className="space-y-8">
+        <div>
+          <h2 className="text-2xl mb-4" style={{ fontFamily: 'var(--font-headlines)' }}>All Brands</h2>
+          {brandList.length === 0 ? (
+            <p className="text-sm text-foreground/60">No brands yet</p>
+          ) : (
+            <ul className="space-y-3">
+              {brandList.map((b) => (
+                <li key={b.id} className="flex items-start justify-between border border-border rounded-md p-3">
+                  <div>
+                    <div className="font-medium">{b.name}</div>
+                    {b.website && (
+                      <a className="text-xs underline" href={b.website} target="_blank" rel="noreferrer">{b.website}</a>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {b.image && <a href={b.image} target="_blank" rel="noreferrer" className="text-xs underline">Image</a>}
+                    <a href={b.logo} target="_blank" rel="noreferrer" className="text-xs underline">Logo</a>
+                    <Button variant="destructive" size="sm" onClick={() => onDeleteBrand(b.id)}>Delete</Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );

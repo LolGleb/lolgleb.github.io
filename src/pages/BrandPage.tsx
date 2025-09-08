@@ -1,4 +1,5 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ExternalLink, Star } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { getBrandById, getSimilarBrands, getBrandArticles } from '../data/mockData';
@@ -10,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '../components/ui/breadcrumb';
+import { AdminBrand, getBrandByIdAdmin } from '../db/brandsDb';
 
 export function BrandPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,9 +21,88 @@ export function BrandPage() {
     return <div>Brand not found</div>;
   }
 
+  // Try legacy/mock brand first
   const brand = getBrandById(id);
+
+  // Also try to resolve admin-created brand from client DB
+  const [dbBrand, setDbBrand] = useState<AdminBrand | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const b = await getBrandByIdAdmin(id);
+        if (!cancelled) setDbBrand(b ?? null);
+      } catch {
+        if (!cancelled) setDbBrand(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
   if (!brand) {
-    return <div>Brand not found</div>;
+    // Loading admin brand lookup
+    if (dbBrand === undefined) {
+      return null;
+    }
+    // Not found anywhere
+    if (dbBrand === null) {
+      return <div>Brand not found</div>;
+    }
+
+    // Render simplified view for admin-created brand
+    const b = dbBrand as AdminBrand;
+    const cover = b.image || b.logo;
+
+    return (
+      <>
+        <SEO 
+          title={`${b.name} — Brand Profile | Ticket to Socks`}
+          description={b.description}
+          keywords={`${b.name}, sock brand`}
+        />
+        <main className="min-h-screen bg-background">
+          <section className="min-h-[60vh] flex items-center">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12 w-full">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+                <div className="order-2 lg:order-1 space-y-6 lg:space-y-8 flex flex-col justify-center">
+                  <div className="flex items-center gap-4">
+                    <Link to="/brands" className="flex items-center text-foreground/60 hover:text-[#FF00A8] transition-colors">
+                      <ArrowLeft className="w-5 h-5" />
+                    </Link>
+                  </div>
+                  <h1 className="text-3xl lg:text-5xl leading-tight" style={{ fontFamily: 'var(--font-headlines)' }}>{b.name}</h1>
+                  {b.description && (
+                    <p className="text-lg lg:text-xl text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                      {b.description}
+                    </p>
+                  )}
+                  {b.website && (
+                    <div>
+                      <a
+                        href={b.website}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-[#FF00A8] hover:opacity-80"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        Visit website <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                  )}
+                </div>
+                <div className="order-1 lg:order-2">
+                  <div className="w-full h-[60vh] lg:h-auto lg:aspect-[4/5] overflow-hidden rounded-none lg:rounded-md">
+                    <ImageWithFallback src={cover} alt={b.name} className="w-full h-full object-cover" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </>
+    );
   }
 
   const similarBrands = getSimilarBrands(id);
