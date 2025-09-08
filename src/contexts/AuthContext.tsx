@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { registerUser, loginUser } from '../db/authDb';
 
 interface User {
   id: string;
@@ -53,39 +54,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
-    // Mock login - в реальном приложении здесь будет API запрос
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: 'user-' + Date.now(),
-      name: email.split('@')[0],
-      email,
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
+    // Real login against client-side DB
+    const dbUser = await loginUser(email, password);
+    const user: User = {
+      id: dbUser.id,
+      name: dbUser.name,
+      email: dbUser.email,
+      avatar: dbUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
       bio: 'Sock enthusiast and fashion lover.',
       socialLinks: {},
       isVerified: false
     };
-    
-    setCurrentUser(mockUser);
-    localStorage.setItem('user', JSON.stringify(mockUser));
+    setCurrentUser(user);
+    localStorage.setItem('user', JSON.stringify(user));
   };
 
   const register = async (name: string, email: string, password: string) => {
-    // Mock register - в реальном приложении здесь будет API запрос
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: 'user-' + Date.now(),
-      name,
-      email,
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
+    // Real registration against client-side DB
+    const dbUser = await registerUser(name, email, password);
+    const user: User = {
+      id: dbUser.id,
+      name: dbUser.name,
+      email: dbUser.email,
+      avatar: dbUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
       bio: 'New sock enthusiast joining the community.',
       socialLinks: {},
       isVerified: false
     };
-    
-    setCurrentUser(mockUser);
-    localStorage.setItem('user', JSON.stringify(mockUser));
+    setCurrentUser(user);
+    localStorage.setItem('user', JSON.stringify(user));
   };
 
   const logout = () => {
