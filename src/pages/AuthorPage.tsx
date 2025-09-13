@@ -89,6 +89,7 @@ export function AuthorPage() {
     name: currentUser?.name || 'Alex Rivera',
     email: currentUser?.email || 'alex@example.com',
     bio: currentUser?.bio || '',
+    avatarUrl: currentUser?.avatar || '',
     notifications: {
       emailAlerts: true,
       weeklyDigest: false,
@@ -109,8 +110,9 @@ export function AuthorPage() {
       name: currentUser.name || prev.name,
       email: currentUser.email || prev.email,
       bio: currentUser.bio || '',
+      avatarUrl: currentUser.avatar || '',
     }));
-  }, [isOwn, currentUser?.id, currentUser?.name, currentUser?.email, currentUser?.bio, activeTab]);
+  }, [isOwn, currentUser?.id, currentUser?.name, currentUser?.email, currentUser?.bio, currentUser?.avatar, activeTab]);
   
   // Find author from articles or use current user for own profile
   const authorArticles = mockArticles.filter(article => article.author?.id === id);
@@ -501,7 +503,7 @@ export function AuthorPage() {
             <div className="flex items-center gap-2 text-foreground/70">
               <FileText className="w-4 h-4" />
               <span className="text-sm">
-                {authorArticles.length} article{authorArticles.length !== 1 ? 's' : ''}
+                {articlesToShow.length} article{articlesToShow.length !== 1 ? 's' : ''}
               </span>
             </div>
             <div className="flex items-center gap-2 text-foreground/70">
@@ -641,6 +643,17 @@ export function AuthorPage() {
                     </div>
                   </div>
                   <div className="mt-4">
+                    <Label htmlFor="avatarUrl">Avatar URL</Label>
+                    <Input
+                      id="avatarUrl"
+                      type="url"
+                      value={userSettings.avatarUrl}
+                      onChange={(e) => updateUserSetting('avatarUrl', e.target.value)}
+                      placeholder="https://example.com/your-avatar.jpg"
+                    />
+                    <div className="text-xs text-foreground/60 mt-1">Paste a direct link to an image (JPG, PNG, GIF). Leave empty to remove avatar.</div>
+                  </div>
+                  <div className="mt-4">
                     <Label htmlFor="bio">Bio</Label>
                     <Textarea
                       id="bio"
@@ -729,6 +742,7 @@ export function AuthorPage() {
                   try {
                     await updateName(userSettings.name);
                     await updateBio(userSettings.bio);
+                    await updateAvatar(userSettings.avatarUrl || '');
                     setActiveTab('articles');
                     toast.success('Changes saved successfully', { duration: 1000 });
                   } catch (e) {
