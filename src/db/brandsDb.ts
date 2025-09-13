@@ -129,3 +129,25 @@ export async function getBrandByIdAdmin(id: string): Promise<AdminBrand | undefi
   }
   return lsRead().find((b) => b.id === id);
 }
+
+export async function updateBrand(brand: AdminBrand): Promise<void> {
+  if (hasIndexedDB()) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.put(brand);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+  const all = lsRead();
+  const idx = all.findIndex((b) => b.id === brand.id);
+  if (idx === -1) {
+    all.push(brand);
+  } else {
+    all[idx] = brand;
+  }
+  lsWrite(all);
+}

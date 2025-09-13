@@ -183,12 +183,18 @@ export function BrandsPage() {
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
             {/* Logo Circle Overlay */}
-            <div className="absolute top-3 right-3 w-10 h-10 bg-white rounded-full shadow-md overflow-hidden">
-              <ImageWithFallback
-                src={brand.logo}
-                alt={`${brand.name} logo`}
-                className="w-full h-full object-cover"
-              />
+            <div className="absolute top-3 right-3 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center overflow-hidden">
+              {typeof brand.logo === 'string' && /^(https?:\/\/|data:|\/\/)/.test(brand.logo) ? (
+                <ImageWithFallback
+                  src={brand.logo}
+                  alt={`${brand.name} logo`}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-xs font-medium" style={{ fontFamily: 'var(--font-headlines)' }}>
+                  {brand.logo}
+                </span>
+              )}
             </div>
           </div>
           

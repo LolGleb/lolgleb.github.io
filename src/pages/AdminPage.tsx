@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { addArticle, AdminArticle, AdminArticleCategory, deleteArticle, generateId, getAllArticles, updateArticle } from '../db/articlesDb';
-import { addBrand, AdminBrand, deleteBrand as deleteBrandDb, generateBrandId, getAllBrands } from '../db/brandsDb';
+import { addBrand, AdminBrand, deleteBrand as deleteBrandDb, generateBrandId, getAllBrands, updateBrand } from '../db/brandsDb';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Button } from '../components/ui/button';
@@ -31,6 +31,7 @@ export function AdminPage() {
   const [brandImage, setBrandImage] = useState('');
   const [brandDescription, setBrandDescription] = useState('');
   const [brandWebsite, setBrandWebsite] = useState('');
+  const [brandEditingId, setBrandEditingId] = useState<string | null>(null);
 
   const [brandLoading, setBrandLoading] = useState(false);
   const [brandList, setBrandList] = useState<AdminBrand[]>([]);
@@ -251,6 +252,25 @@ export function AdminPage() {
     await refreshBrands();
   }
 
+  function startBrandEdit(b: AdminBrand) {
+    setBrandEditingId(b.id);
+    setBrandName(b.name);
+    setBrandLogo(b.logo || '');
+    setBrandImage(b.image || '');
+    setBrandDescription(b.description || '');
+    setBrandWebsite(b.website || '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelBrandEdit() {
+    setBrandEditingId(null);
+    setBrandName('');
+    setBrandLogo('');
+    setBrandImage('');
+    setBrandDescription('');
+    setBrandWebsite('');
+  }
+
   async function onSubmitBrand(e: React.FormEvent) {
     e.preventDefault();
     setBrandError(null);
@@ -268,15 +288,21 @@ export function AdminPage() {
     try {
       setBrandLoading(true);
       const brand: AdminBrand = {
-        id: generateBrandId(),
+        id: brandEditingId || generateBrandId(),
         name: brandName.trim(),
         logo: brandLogo.trim() || brandImage.trim(),
         image: brandImage.trim() || undefined,
         description: brandDescription.trim() || undefined,
         website: brandWebsite.trim() || undefined,
       };
-      await addBrand(brand);
-      setBrandSuccess('Brand added');
+      if (brandEditingId) {
+        await updateBrand(brand);
+        setBrandSuccess('Brand updated');
+        setBrandEditingId(null);
+      } else {
+        await addBrand(brand);
+        setBrandSuccess('Brand added');
+      }
       setBrandName('');
       setBrandLogo('');
       setBrandImage('');
@@ -285,7 +311,7 @@ export function AdminPage() {
       await refreshBrands();
     } catch (err) {
       console.error(err);
-      setBrandError('Failed to add brand');
+      setBrandError(brandEditingId ? 'Failed to update brand' : 'Failed to add brand');
     } finally {
       setBrandLoading(false);
     }
@@ -469,9 +495,14 @@ export function AdminPage() {
             <div className="md:col-span-2">
               {brandError && <div className="text-red-500 text-sm mb-2">{brandError}</div>}
               {brandSuccess && <div className="text-green-600 text-sm mb-2">{brandSuccess}</div>}
-              <Button type="submit" disabled={brandLoading}>
-                {brandLoading ? 'Saving…' : 'Add Brand'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button type="submit" disabled={brandLoading}>
+                  {brandLoading ? 'Saving…' : (brandEditingId ? 'Update Brand' : 'Add Brand')}
+                </Button>
+                {brandEditingId && (
+                  <Button type="button" variant="secondary" onClick={cancelBrandEdit}>Cancel</Button>
+                )}
+              </div>
             </div>
           </form>
 
@@ -493,6 +524,7 @@ export function AdminPage() {
                       <div className="flex items-center space-x-2">
                         {b.image && <a href={b.image} target="_blank" rel="noreferrer" className="text-xs underline">Image</a>}
                         <a href={b.logo} target="_blank" rel="noreferrer" className="text-xs underline">Logo</a>
+                        <Button variant="secondary" size="sm" onClick={() => startBrandEdit(b)}>Edit</Button>
                         <Button variant="destructive" size="sm" onClick={() => onDeleteBrand(b.id)}>Delete</Button>
                       </div>
                     </li>
