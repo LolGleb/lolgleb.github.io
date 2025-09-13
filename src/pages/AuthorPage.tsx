@@ -14,7 +14,7 @@ import { mockArticles, mockComments } from '../data/mockData';
 import { useFavorites } from '../contexts/FavoritesContext';
 import { useAuth } from '../contexts/AuthContext';
 import { NotFoundPage } from './NotFoundPage';
-import { ArticleSubmission, getAllSubmissions } from '../db/submissionsDb';
+import { ArticleSubmission, getAllSubmissions, getSubmissionById } from '../db/submissionsDb';
 import type { Article as SiteArticle, Author as SiteAuthor } from '../types';
 import { getAllArticles, AdminArticle, getArticleByIdAdmin } from '../db/articlesDb';
 
@@ -237,16 +237,56 @@ export function AuthorPage() {
       if (!isOwn) { setFavoriteArticles([]); return; }
       try {
         setFavLoading(true);
-        const ids = Array.from(new Set(favorites));
+        // Normalize IDs: handle paths or full URLs containing '/article/<id>', trim, and dedupe
+        const norm = (v: string) => {
+          const s = (v || '').trim();
+          if (!s) return '';
+          const marker = '/article/';
+          const idx = s.lastIndexOf(marker);
+          if (idx !== -1) {
+            return s.slice(idx + marker.length);
+          }
+          // Strip leading slashes
+          return s.replace(/^\/+/, '');
+        };
+        const ids = Array.from(new Set(favorites.map(norm).filter(Boolean)));
         const results: SiteArticle[] = [];
-        for (const id of ids) {
-          const mock = mockArticles.find((a) => a.id === id);
+        for (const favId of ids) {
+          // Handle legacy favorites saved as submission URLs like "sub-<id>"
+          if (favId.startsWith('sub-')) {
+            try {
+              const sub = await getSubmissionById(favId.slice(4));
+              const pubId = sub?.publishedArticleId;
+              if (pubId) {
+                const admin = await getArticleByIdAdmin(pubId);
+                if (admin) {
+                  const dateStr = (() => { try { const d = new Date(admin.publishedAt); return isNaN(d.getTime()) ? admin.publishedAt : d.toLocaleDateString(); } catch { return admin.publishedAt; } })();
+                  results.push({
+                    id: admin.id,
+                    title: admin.title,
+                    excerpt: admin.excerpt || '',
+                    category: admin.category as any,
+                    date: dateStr,
+                    image: admin.image,
+                    readTime: admin.readTime,
+                    featured: admin.featured,
+                    content: admin.content,
+                    author: displayAuthor as any,
+                  });
+                }
+              }
+            } catch {
+              // ignore errors for individual legacy items
+            }
+            continue;
+          }
+          const mock = mockArticles.find((a) => a.id === favId);
           if (mock) {
             results.push(mock);
             continue;
           }
           try {
-            const admin = await getArticleByIdAdmin(id);
+            const admin = await getArticleByIdAdmin(favId);
             if (admin) {
               const dateStr = (() => { try { const d = new Date(admin.publishedAt); return isNaN(d.getTime()) ? admin.publishedAt : d.toLocaleDateString(); } catch { return admin.publishedAt; } })();
               results.push({
@@ -267,6 +307,7 @@ export function AuthorPage() {
           }
         }
         const sorted = results.sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime());
+        try { console.debug('[DEBUG_LOG][AuthorPage] favorites resolve', { requested: ids.length, resolved: results.length }); } catch {}
         if (!cancelled) setFavoriteArticles(sorted);
       } finally {
         if (!cancelled) setFavLoading(false);

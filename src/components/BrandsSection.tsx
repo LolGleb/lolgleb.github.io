@@ -44,9 +44,17 @@ function NewBrandCard({ brand }: { brand: Brand }) {
           />
           {/* Logo Circle Overlay */}
           <div className="absolute top-3 right-3 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center overflow-hidden">
-            <span className="text-xs font-medium" style={{ fontFamily: 'var(--font-headlines)' }}>
-              {brand.logo}
-            </span>
+            {typeof brand.logo === 'string' && /^(https?:\/\/|data:|\/\/)/.test(brand.logo) ? (
+              <ImageWithFallback
+                src={brand.logo}
+                alt={`${brand.name} logo`}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <span className="text-xs font-medium" style={{ fontFamily: 'var(--font-headlines)' }}>
+                {brand.logo}
+              </span>
+            )}
           </div>
         </div>
         

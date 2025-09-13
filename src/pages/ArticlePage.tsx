@@ -10,7 +10,6 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { ArticleGallery } from '../components/ArticleGallery';
 import { ShareBlock } from '../components/ShareBlock';
 import { ShareEngagementInline } from '../components/ShareEngagementInline';
-import { RelatedArticles } from '../components/RelatedArticles';
 import { AuthorBlock } from '../components/AuthorBlock';
 import { BrandsBlock } from '../components/BrandsBlock';
 import { CommentsSection } from '../components/CommentsSection';
@@ -105,6 +104,10 @@ export function ArticlePage() {
       }
     })();
 
+    // Build similar articles from mock data for bottom section
+    const similarArticles = mockArticles
+      .slice(0, 8);
+
     return (
       <>
         <ReadingProgress />
@@ -136,6 +139,13 @@ export function ArticlePage() {
                   {a.excerpt && (
                     <p className="text-xl lg:text-2xl text-foreground/70 leading-relaxed">{a.excerpt}</p>
                   )}
+
+                  {/* Engagement (compact) */}
+                  <ArticleEngagementCompact 
+                    articleId={a.id}
+                    title={a.title}
+                    category={a.category}
+                  />
                 </div>
               </div>
             </div>
@@ -156,21 +166,55 @@ export function ArticlePage() {
               )}
             </div>
           </section>
+
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+            <div className="max-w-3xl mx-auto">
+              <ShareEngagementInline url={window.location.href} title={a.title} articleId={a.id} category={a.category} />
+
+              <ArticleEngagement articleId={a.id} title={a.title} category={a.category} variant="full" className="my-8" />
+
+              <CommentsSection comments={mockComments} />
+            </div>
+          </section>
+
+
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+            <div className="space-y-8">
+              <h2 className="text-2xl lg:text-3xl" style={{ fontFamily: 'var(--font-headlines)' }}>
+                More Articles
+              </h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+                {similarArticles.map((similar) => (
+                  <Link key={similar.id} to={`/article/${similar.id}`} className="group">
+                    <div className="space-y-3">
+                      <div className="aspect-[4/3] overflow-hidden rounded-md">
+                        <ImageWithFallback src={similar.image} alt={similar.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="category-label uppercase" style={{ color: '#FF00A8' }}>{similar.category}</span>
+                          <span className="date-text text-foreground/50">{similar.date}</span>
+                        </div>
+                        <h3 className="text-sm lg:text-base leading-tight group-hover:text-[#FF00A8] transition-colors" style={{ fontFamily: 'var(--font-headlines)' }}>
+                          {similar.title}
+                        </h3>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <div className="text-center">
+                <Link to="/" className="bg-transparent text-[#FF00A8] border-2 border-[#FF00A8] px-6 py-2 hover:bg-[#FF00A8] hover:text-white transition-all duration-300 inline-block" style={{ fontFamily: 'var(--font-body)', fontWeight: '600' }}>
+                  Read more
+                </Link>
+              </div>
+            </div>
+          </section>
         </main>
       </>
     );
   }
 
-  // Get related articles - mix from same category and other articles
-  const sameCategory = mockArticles
-    .filter(a => a.category === article.category && a.id !== article.id)
-    .slice(0, 2);
-  
-  const otherArticles = mockArticles
-    .filter(a => a.category !== article.category && a.id !== article.id)
-    .slice(0, 3);
-  
-  const relatedArticles = [...sameCategory, ...otherArticles].slice(0, 5);
 
   // Get similar articles for the bottom section
   const similarArticles = mockArticles
@@ -276,7 +320,7 @@ export function ArticlePage() {
 
         {/* Article Content */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 lg:gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
             {/* Main Content */}
             <div className="lg:col-span-3 space-y-8">
               {/* Article Text */}
@@ -376,15 +420,13 @@ export function ArticlePage() {
                 category={article.category}
               />
 
-              {/* Article Engagement (only views and reading time) */}
+              {/* Article Engagement (with likes and bookmark) */}
               <ArticleEngagement 
                 articleId={article.id}
                 title={article.title}
                 category={article.category}
                 variant="full"
                 className="my-8"
-                showLikes={false}
-                showBookmark={false}
               />
 
               {/* Author Block */}
@@ -401,8 +443,6 @@ export function ArticlePage() {
               <CommentsSection comments={mockComments} />
             </div>
 
-            {/* Related Articles - Desktop only, sticky */}
-            <RelatedArticles articles={relatedArticles} />
           </div>
 
 
