@@ -35,11 +35,13 @@ jobs:
       - name: Determine base path (user/org vs project pages)
         shell: bash
         run: |
-          if [[ "${{ github.repository }}" == "${{ github.repository_owner }}/${{ github.repository_owner }}.github.io" ]]; then
+          # If repository name ends with .github.io, it's a user/org site => base '/'
+          if [[ "${{ github.event.repository.name }}" == *.github.io ]]; then
             echo "BASE_PATH=/" >> $GITHUB_ENV
           else
             echo "BASE_PATH=/${{ github.event.repository.name }}/" >> $GITHUB_ENV
           fi
+          echo "Using BASE_PATH=$BASE_PATH"
 
       - name: Build site
         run: npm run build -- --base="$BASE_PATH"
