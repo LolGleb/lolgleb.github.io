@@ -5,7 +5,7 @@ import { SEO } from '../components/SEO';
 import { ReadingProgress } from '../components/ReadingProgress';
 import { ArticleEngagement } from '../components/ArticleEngagement';
 import { ArticleEngagementCompact } from '../components/ArticleEngagementCompact';
-import { getArticleById as getMockArticleById, mockArticles, mockComments } from '../data/mockData';
+import { getArticleById as getMockArticleById, mockArticles } from '../data/mockData';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { ArticleGallery } from '../components/ArticleGallery';
 import { ShareBlock } from '../components/ShareBlock';
@@ -173,7 +173,7 @@ export function ArticlePage() {
 
               <ArticleEngagement articleId={a.id} title={a.title} category={a.category} variant="full" className="my-8" />
 
-              <CommentsSection comments={mockComments} />
+              <CommentsSection articleId={a.id} />
             </div>
           </section>
 
@@ -440,7 +440,7 @@ export function ArticlePage() {
               )}
 
               {/* Comments Section */}
-              <CommentsSection comments={mockComments} />
+              <CommentsSection articleId={article.id} />
             </div>
 
           </div>

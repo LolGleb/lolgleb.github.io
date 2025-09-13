@@ -1,31 +1,92 @@
 import { MessageCircle, Send } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Comment } from '../types';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
+import { addComment, generateCommentId, getCommentsForArticle, DbComment } from '../db/commentsDb';
+import { toast } from 'sonner@2.0.3';
 
 interface CommentsSectionProps {
-  comments: Comment[];
+  articleId: string;
 }
 
-export function CommentsSection({ comments }: CommentsSectionProps) {
+export function CommentsSection({ articleId }: CommentsSectionProps) {
   const { isAuthenticated, currentUser } = useAuth();
   const [commentText, setCommentText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [items, setItems] = useState<DbComment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    try {
+      setLoading(true);
+      const list = await getCommentsForArticle(articleId);
+      setItems(list);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articleId]);
+
+  const tree: Comment[] = useMemo(() => {
+    // Transform flat list (DbComment) into Comment tree used by UI
+    const byId: Record<string, Comment & { parentId?: string }> = {} as any;
+    const roots: (Comment & { parentId?: string })[] = [];
+    for (const c of items) {
+      byId[c.id] = {
+        id: c.id,
+        author: c.author,
+        avatar: c.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
+        content: c.content,
+        date: (() => { try { const d = new Date(c.createdAt); return isNaN(d.getTime()) ? c.createdAt : d.toLocaleString(); } catch { return c.createdAt; } })(),
+        replies: [],
+        parentId: c.parentId,
+      };
+    }
+    for (const id in byId) {
+      const node = byId[id];
+      const parentId = (node as any).parentId as string | undefined;
+      if (parentId && byId[parentId]) {
+        (byId[parentId].replies = byId[parentId].replies || []).push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+    return roots as Comment[];
+  }, [items]);
+
+  const totalCount = items.length;
 
   const handleSubmitComment = async () => {
-    if (!commentText.trim()) return;
-    
+    if (!commentText.trim() || !currentUser) return;
     setIsSubmitting(true);
-    // Here you would typically submit the comment to your backend
-    setTimeout(() => {
+    try {
+      const newComment: DbComment = {
+        id: generateCommentId(),
+        articleId,
+        userId: currentUser.id,
+        author: currentUser.name,
+        avatar: currentUser.avatar,
+        content: commentText.trim(),
+        createdAt: new Date().toISOString(),
+      };
+      await addComment(newComment);
       setCommentText('');
+      await load();
+      toast.success('Comment posted');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to post comment');
+    } finally {
       setIsSubmitting(false);
-      // Show success toast or update comments
-    }, 1000);
+    }
   };
 
   return (
@@ -35,7 +96,7 @@ export function CommentsSection({ comments }: CommentsSectionProps) {
           Comments
         </h3>
         <span className="text-foreground/60 text-sm">
-          ({comments.length})
+          ({loading ? '…' : totalCount})
         </span>
       </div>
 
@@ -79,7 +140,7 @@ export function CommentsSection({ comments }: CommentsSectionProps) {
           <MessageCircle className="w-10 h-10 text-foreground/30 mx-auto" />
           <div className="space-y-2">
             <p className="text-foreground/60">
-              {comments.length === 0 ? 'Be the first to comment.' : 'Join the conversation.'}
+              {totalCount === 0 ? 'Be the first to comment.' : 'Join the conversation.'}
             </p>
             <p className="text-sm text-foreground/50">
               <Link 
@@ -102,9 +163,9 @@ export function CommentsSection({ comments }: CommentsSectionProps) {
       )}
 
       {/* Existing Comments */}
-      {comments.length > 0 && (
+      {tree.length > 0 && (
         <div className="space-y-6 mt-6">
-          {comments.map((comment) => (
+          {tree.map((comment) => (
             <div key={comment.id} className="flex gap-4">
               <div className="w-10 h-10 flex-shrink-0 overflow-hidden rounded-full">
                 <ImageWithFallback
