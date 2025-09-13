@@ -18,12 +18,48 @@ import { ArticleGrid } from '../components/ArticleGrid';
 import { useEngagement } from '../contexts/EngagementContext';
 import { calculateReadingTime, formatReadingTime } from '../utils/readingTime';
 import { getArticleByIdAdmin, AdminArticle } from '../db/articlesDb';
+import { getSubmissionById } from '../db/submissionsDb';
 
 export function ArticlePage() {
   const { id } = useParams<{ id: string }>();
   
   if (!id) {
     return <Navigate to="/404" replace />;
+  }
+
+  // Handle legacy links to submissions (id prefixed with "sub-") by redirecting to the published article
+  const [subCheckDone, setSubCheckDone] = useState(false);
+  const [redirectTarget, setRedirectTarget] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (id.startsWith('sub-')) {
+        try {
+          const subId = id.slice(4);
+          const s = await getSubmissionById(subId);
+          if (!cancelled) {
+            if (s?.publishedArticleId) {
+              setRedirectTarget(`/article/${s.publishedArticleId}`);
+            } else {
+              setRedirectTarget('/404');
+            }
+          }
+        } catch {
+          if (!cancelled) setRedirectTarget('/404');
+        } finally {
+          if (!cancelled) setSubCheckDone(true);
+        }
+      } else {
+        if (!cancelled) setSubCheckDone(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (id.startsWith('sub-')) {
+    if (!subCheckDone) return null; // loading
+    if (redirectTarget === '/404') return <Navigate to="/404" replace />;
+    if (redirectTarget) return <Navigate to={redirectTarget} replace />;
   }
 
   // Try mock data first for legacy/static articles

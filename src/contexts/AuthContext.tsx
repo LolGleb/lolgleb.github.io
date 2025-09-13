@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { registerUser, loginUser } from '../db/authDb';
+import { registerUser, loginUser, updateUserAvatar as dbUpdateUserAvatar, updateUserBio as dbUpdateUserBio, updateUserName as dbUpdateUserName } from '../db/authDb';
 
 interface User {
   id: string;
@@ -30,10 +30,14 @@ interface BrandRating {
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
+  hydrated: boolean;
   isOwnProfile: (authorId: string) => boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateAvatar: (avatarUrl: string) => Promise<void>;
+  updateBio: (bio: string) => Promise<void>;
+  updateName: (name: string) => Promise<void>;
   rateBrand: (brandId: string, category: string, rating: number) => void;
   getUserBrandRating: (brandId: string) => BrandRating | null;
 }
@@ -44,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Mock current user - в реальном приложении это будет из API/локального storage  
   // Change to null to test non-authenticated state: useState<User | null>(null)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   const [userRatings, setUserRatings] = useState<BrandRating[]>([]);
 
@@ -60,13 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: dbUser.id,
       name: dbUser.name,
       email: dbUser.email,
-      avatar: dbUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-      bio: 'Sock enthusiast and fashion lover.',
+      avatar: dbUser.avatar || '',
+      bio: dbUser.bio || '',
       socialLinks: {},
       isVerified: false
     };
     setCurrentUser(user);
     localStorage.setItem('user', JSON.stringify(user));
+    try { console.debug('[DEBUG_LOG][Auth] login success', { id: user.id, email: user.email }); } catch {}
   };
 
   const register = async (name: string, email: string, password: string) => {
@@ -76,20 +82,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: dbUser.id,
       name: dbUser.name,
       email: dbUser.email,
-      avatar: dbUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-      bio: 'New sock enthusiast joining the community.',
+      avatar: dbUser.avatar || '',
+      bio: dbUser.bio || '',
       socialLinks: {},
       isVerified: false
     };
     setCurrentUser(user);
     localStorage.setItem('user', JSON.stringify(user));
+    try { console.debug('[DEBUG_LOG][Auth] register success', { id: user.id, email: user.email }); } catch {}
   };
 
   const logout = () => {
+    try { console.debug('[DEBUG_LOG][Auth] logout'); } catch {}
     setCurrentUser(null);
     setUserRatings([]);
     localStorage.removeItem('user');
     localStorage.removeItem('userRatings');
+  };
+
+  const updateAvatar = async (avatarUrl: string) => {
+    if (!currentUser) return;
+    const updatedDbUser = await dbUpdateUserAvatar(currentUser.id, avatarUrl);
+    const newUser: User = {
+      ...currentUser,
+      avatar: updatedDbUser.avatar || ''
+    };
+    setCurrentUser(newUser);
+    localStorage.setItem('user', JSON.stringify(newUser));
+    try { console.debug('[DEBUG_LOG][Auth] avatar updated', { id: newUser.id, hasAvatar: Boolean(newUser.avatar) }); } catch {}
+  };
+
+  const updateBio = async (bio: string) => {
+    if (!currentUser) return;
+    const trimmed = (bio || '').trim();
+    const limited = trimmed.slice(0, 280);
+    const updatedDbUser = await dbUpdateUserBio(currentUser.id, limited);
+    const newUser: User = {
+      ...currentUser,
+      bio: updatedDbUser.bio || ''
+    };
+    setCurrentUser(newUser);
+    localStorage.setItem('user', JSON.stringify(newUser));
+    try { console.debug('[DEBUG_LOG][Auth] bio updated', { id: newUser.id, length: (newUser.bio || '').length }); } catch {}
+  };
+
+  const updateName = async (name: string) => {
+    if (!currentUser) return;
+    const safe = (name || '').trim();
+    if (!safe) return;
+    const updatedDbUser = await dbUpdateUserName(currentUser.id, safe);
+    const newUser: User = {
+      ...currentUser,
+      name: updatedDbUser.name
+    };
+    setCurrentUser(newUser);
+    localStorage.setItem('user', JSON.stringify(newUser));
+    try { console.debug('[DEBUG_LOG][Auth] name updated', { id: newUser.id, name: newUser.name }); } catch {}
   };
 
   const rateBrand = (brandId: string, category: string, rating: number) => {
@@ -130,22 +178,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     const savedRatings = localStorage.getItem('userRatings');
-    
+
+    let parsedUser: any = null;
     if (savedUser) {
       try {
-        setCurrentUser(JSON.parse(savedUser));
+        parsedUser = JSON.parse(savedUser);
+        setCurrentUser(parsedUser);
+        try { console.debug('[DEBUG_LOG][Auth] hydrated from localStorage', { userId: parsedUser?.id, hasAvatar: Boolean(parsedUser?.avatar), hasBio: Boolean(parsedUser?.bio) }); } catch {}
       } catch (e) {
-        console.error('Failed to parse saved user:', e);
+        console.error('[DEBUG_LOG][Auth] Failed to parse saved user:', e);
       }
+    } else {
+      try { console.debug('[DEBUG_LOG][Auth] no saved user in localStorage'); } catch {}
     }
-    
+
     if (savedRatings) {
       try {
-        setUserRatings(JSON.parse(savedRatings));
+        const parsedRatings = JSON.parse(savedRatings);
+        setUserRatings(parsedRatings);
+        try { console.debug('[DEBUG_LOG][Auth] hydrated ratings', { count: Array.isArray(parsedRatings) ? parsedRatings.length : 0 }); } catch {}
       } catch (e) {
-        console.error('Failed to parse saved ratings:', e);
+        console.error('[DEBUG_LOG][Auth] Failed to parse saved ratings:', e);
       }
     }
+    setHydrated(true);
+    try { console.debug('[DEBUG_LOG][Auth] hydrated=true'); } catch {}
   }, []);
 
   // Save ratings to localStorage when they change
@@ -158,10 +215,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     currentUser,
     isAuthenticated,
+    hydrated,
     isOwnProfile,
     login,
     register,
     logout,
+    updateAvatar,
+    updateBio,
+    updateName,
     rateBrand,
     getUserBrandRating
   };

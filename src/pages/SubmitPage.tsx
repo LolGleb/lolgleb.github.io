@@ -9,6 +9,8 @@ import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../contexts/AuthContext';
 import { mockTags } from '../data/mockData';
+import { toast } from 'sonner@2.0.3';
+import { addSubmission, ArticleSubmission, generateSubmissionId } from '../db/submissionsDb';
 
 export function SubmitPage() {
   const { isAuthenticated, currentUser } = useAuth();
@@ -27,22 +29,38 @@ export function SubmitPage() {
   // Handle article submission
   const handleArticleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) return;
+
+    if (!articleForm.title.trim() || !articleForm.excerpt.trim() || !articleForm.category || !articleForm.content.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
     setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const submission: ArticleSubmission = {
+        id: generateSubmissionId(),
+        title: articleForm.title.trim(),
+        excerpt: articleForm.excerpt.trim(),
+        category: articleForm.category as any,
+        image: articleForm.image.trim() || undefined,
+        content: articleForm.content.trim(),
+        tags: articleForm.tags,
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        authorEmail: currentUser.email,
+        createdAt: new Date().toISOString(),
+        status: 'pending',
+      };
+      await addSubmission(submission);
+      toast.success('Your article has been submitted for moderation');
+      setArticleForm({ title: '', excerpt: '', category: '', tags: [], content: '', image: '' });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to submit article');
+    } finally {
       setIsSubmitting(false);
-      alert('Your story has been submitted for review! We\'ll get back to you soon.');
-      // Reset form
-      setArticleForm({
-        title: '',
-        excerpt: '',
-        category: '',
-        tags: [],
-        content: '',
-        image: ''
-      });
-    }, 1500);
+    }
   };
 
   const handleTagToggle = (tagId: string) => {

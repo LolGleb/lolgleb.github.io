@@ -9,6 +9,10 @@ interface FavoriteButtonProps {
 }
 
 export function FavoriteButton({ articleId, className, size = 'md' }: FavoriteButtonProps) {
+  // Guard against incorrect usage
+  if (typeof articleId !== 'string' || !articleId.trim()) {
+    return null;
+  }
   const { isFavorite, addToFavorites, removeFromFavorites } = useFavorites();
   const favorite = isFavorite(articleId);
 

@@ -7,6 +7,7 @@ export interface DbUser {
   email: string; // unique (case-insensitive)
   password: string; // plaintext for simplicity (not secure)
   avatar?: string;
+  bio?: string;
   createdAt: string; // ISO
 }
 
@@ -122,9 +123,10 @@ export async function registerUser(name: string, email: string, password: string
     name: name.trim() || emailNorm,
     email: emailNorm,
     password, // not secure; demo only
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
+    // No default placeholder avatar — user can upload their own in profile settings
+    bio: '',
     createdAt: new Date().toISOString(),
-  };
+  } as DbUser;
   await addUser(user);
   return user;
 }
@@ -139,4 +141,110 @@ export async function loginUser(email: string, password: string): Promise<DbUser
     throw new Error('Invalid credentials');
   }
   return existing;
+}
+
+export async function updateUserAvatar(userId: string, avatarUrl: string): Promise<DbUser> {
+  if (hasIndexedDB()) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(userId);
+      getReq.onsuccess = () => {
+        const user = (getReq.result as DbUser) || undefined;
+        if (!user) {
+          tx.abort();
+          reject(new Error('User not found'));
+          return;
+        }
+        const updated: DbUser = { ...user, avatar: avatarUrl };
+        store.put(updated);
+        tx.oncomplete = () => resolve(updated);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      };
+      getReq.onerror = () => reject(getReq.error);
+    });
+  }
+  const all = lsRead();
+  const idx = all.findIndex((u) => u.id === userId);
+  if (idx === -1) {
+    throw new Error('User not found');
+  }
+  const updated: DbUser = { ...all[idx], avatar: avatarUrl };
+  all[idx] = updated;
+  lsWrite(all);
+  return updated;
+}
+
+export async function updateUserBio(userId: string, bio: string): Promise<DbUser> {
+  if (hasIndexedDB()) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(userId);
+      getReq.onsuccess = () => {
+        const user = (getReq.result as DbUser) || undefined;
+        if (!user) {
+          tx.abort();
+          reject(new Error('User not found'));
+          return;
+        }
+        const updated: DbUser = { ...user, bio };
+        store.put(updated);
+        tx.oncomplete = () => resolve(updated);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      };
+      getReq.onerror = () => reject(getReq.error);
+    });
+  }
+  const all = lsRead();
+  const idx = all.findIndex((u) => u.id === userId);
+  if (idx === -1) {
+    throw new Error('User not found');
+  }
+  const updated: DbUser = { ...all[idx], bio };
+  all[idx] = updated;
+  lsWrite(all);
+  return updated;
+}
+
+export async function updateUserName(userId: string, name: string): Promise<DbUser> {
+  const safe = (name || '').trim();
+  if (!safe) {
+    throw new Error('Name cannot be empty');
+  }
+  if (hasIndexedDB()) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(userId);
+      getReq.onsuccess = () => {
+        const user = (getReq.result as DbUser) || undefined;
+        if (!user) {
+          tx.abort();
+          reject(new Error('User not found'));
+          return;
+        }
+        const updated: DbUser = { ...user, name: safe };
+        store.put(updated);
+        tx.oncomplete = () => resolve(updated);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      };
+      getReq.onerror = () => reject(getReq.error);
+    });
+  }
+  const all = lsRead();
+  const idx = all.findIndex((u) => u.id === userId);
+  if (idx === -1) {
+    throw new Error('User not found');
+  }
+  const updated: DbUser = { ...all[idx], name: safe };
+  all[idx] = updated;
+  lsWrite(all);
+  return updated;
 }

@@ -148,3 +148,26 @@ export function generateId(): string {
     return v.toString(16);
   });
 }
+
+
+export async function updateArticle(article: AdminArticle): Promise<void> {
+  if (hasIndexedDB()) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.put(article);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+  const all = lsRead();
+  const idx = all.findIndex((a) => a.id === article.id);
+  if (idx === -1) {
+    all.push(article);
+  } else {
+    all[idx] = article;
+  }
+  lsWrite(all);
+}
