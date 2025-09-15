@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { registerUser, loginUser, updateUserAvatar as dbUpdateUserAvatar, updateUserBio as dbUpdateUserBio, updateUserName as dbUpdateUserName } from '../db/authDb';
+import { registerUser, loginUser, updateUserAvatar as dbUpdateUserAvatar, updateUserBio as dbUpdateUserBio, updateUserName as dbUpdateUserName, getUserById } from '../db/authDb';
 
 interface User {
   id: string;
@@ -184,6 +184,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         parsedUser = JSON.parse(savedUser);
         setCurrentUser(parsedUser);
+        // Refresh user from DB to get the latest fields (e.g., name)
+        getUserById(parsedUser.id)
+          .then((dbUser) => {
+            if (!dbUser) return;
+            const freshUser: User = {
+              id: dbUser.id,
+              name: dbUser.name,
+              email: dbUser.email,
+              avatar: dbUser.avatar || '',
+              bio: dbUser.bio || '',
+              socialLinks: {},
+              isVerified: false
+            };
+            setCurrentUser(freshUser);
+            localStorage.setItem('user', JSON.stringify(freshUser));
+            try { console.debug('[DEBUG_LOG][Auth] refreshed user from DB', { id: freshUser.id, name: freshUser.name }); } catch {}
+          })
+          .catch((err) => {
+            try { console.warn('[DEBUG_LOG][Auth] failed to refresh user from DB', err); } catch {}
+          });
         try { console.debug('[DEBUG_LOG][Auth] hydrated from localStorage', { userId: parsedUser?.id, hasAvatar: Boolean(parsedUser?.avatar), hasBio: Boolean(parsedUser?.bio) }); } catch {}
       } catch (e) {
         console.error('[DEBUG_LOG][Auth] Failed to parse saved user:', e);
