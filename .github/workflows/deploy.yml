@@ -35,6 +35,11 @@ jobs:
           rm -rf node_modules package-lock.json
           npm install
 
+      - name: Create .env file
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+
       - name: Determine base path (user/org vs project pages)
         shell: bash
         run: |
