@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { ExternalLink, Twitter, Instagram, FileText, MessageCircle, Heart, Settings, User as UserIcon, Bell, Mail, Palette } from 'lucide-react';
 import { SEO } from '../components/SEO';
@@ -17,6 +17,7 @@ import { NotFoundPage } from './NotFoundPage';
 import { ArticleSubmission, getAllSubmissions, getSubmissionById } from '../db/submissionsDb';
 import type { Article as SiteArticle, Author as SiteAuthor } from '../types';
 import { getAllArticles, AdminArticle, getArticleByIdAdmin } from '../db/articlesDb';
+import { getUserById, type DbUser } from '../db/authDb';
 
 type TabType = 'articles' | 'favorites' | 'settings' | 'submissions';
 
@@ -79,10 +80,24 @@ function AvatarUploader({ onUpload }: AvatarUploaderProps) {
 }
 
 export function AuthorPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { id } = useParams<{ id: string }>();
   const { currentUser, isOwnProfile, updateAvatar, updateBio, updateName, hydrated } = useAuth();
   const { favorites, favoritesCount } = useFavorites();
   const [activeTab, setActiveTab] = useState<TabType>('articles');
+  // Latest profile user fetched from DB (by :id)
+  const [profileUser, setProfileUser] = useState<DbUser | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  // Sync tab with ?tab= query param if present
+  useEffect(() => {
+    const q = (searchParams.get('tab') || '').toLowerCase();
+    const allowed = ['articles','favorites','settings','submissions'];
+    if (q && (allowed as string[]).includes(q)) {
+      setActiveTab(q as TabType);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()]);
   
   // Mock user settings for demonstration
   const [userSettings, setUserSettings] = useState({
@@ -102,25 +117,55 @@ export function AuthorPage() {
   // Check if this is the current user's own profile
   const isOwn = isOwnProfile(id);
   
-  // Keep settings form in sync with the hydrated current user when opening Settings
+  // Keep settings form in sync with the latest profile (DB when available) when opening Settings
   useEffect(() => {
-    if (!isOwn || !currentUser) return;
+    if (!isOwn) return;
+    const src = profileUser ?? currentUser;
+    if (!src) return;
     setUserSettings((prev) => ({
       ...prev,
-      name: currentUser.name || prev.name,
-      email: currentUser.email || prev.email,
-      bio: currentUser.bio || '',
-      avatarUrl: currentUser.avatar || '',
+      name: (src as any).name || prev.name,
+      email: (src as any).email || prev.email,
+      bio: (src as any).bio || '',
+      avatarUrl: (src as any).avatar || '',
     }));
-  }, [isOwn, currentUser?.id, currentUser?.name, currentUser?.email, currentUser?.bio, currentUser?.avatar, activeTab]);
+  }, [isOwn, profileUser?.id, profileUser?.name, profileUser?.email, profileUser?.bio, profileUser?.avatar, currentUser?.id, activeTab]);
   
-  // Find author from articles or use current user for own profile
+  // Find author data from mock articles (for social links, etc.)
   const authorArticles = mockArticles.filter(article => article.author?.id === id);
-  const author = authorArticles.length > 0 ? authorArticles[0].author : (isOwn ? currentUser : null);
-  // Merge current user data for own profile so edits (bio/avatar/name) are shown
-  const displayAuthor = (isOwn && currentUser)
-    ? { ...author, name: currentUser.name || (author as any).name, avatar: currentUser.avatar || (author as any).avatar, bio: currentUser.bio || (author as any).bio }
-    : author;
+  const mockAuthor = authorArticles.length > 0 ? authorArticles[0].author : null;
+
+  // Fetch latest profile info from DB on mount/when id changes
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!id) return;
+      try {
+        setProfileLoading(true);
+        setProfileError(null);
+        const dbUser = await getUserById(id);
+        if (!cancelled) setProfileUser(dbUser ?? null);
+      } catch (e) {
+        console.error('[DEBUG_LOG][AuthorPage] failed to fetch profile user', e);
+        if (!cancelled) setProfileError('Failed to load profile');
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  // Determine display author priority: DB user > currentUser (own) > mock author
+  const displayAuthor = (() => {
+    const base: any = profileUser
+      ? { id: profileUser.id, name: profileUser.name, avatar: profileUser.avatar || '', bio: profileUser.bio || '' }
+      : (isOwn && currentUser)
+        ? { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar || '', bio: currentUser.bio || '' }
+        : mockAuthor;
+    return base as any;
+  })();
+
+  const author = mockAuthor || (displayAuthor as any);
   
   // My submissions state
   const [mySubmissions, setMySubmissions] = useState<ArticleSubmission[]>([]);
@@ -201,7 +246,19 @@ export function AuthorPage() {
   
   const combinedArticles = isOwn ? [...authorArticles, ...approvedAsArticles] : authorArticles;
   const combinedSorted: SiteArticle[] = [...combinedArticles].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const articlesToShow = isOwn ? combinedSorted : authorArticles;
+  // When viewing own profile, ensure all article cards show the latest user name/avatar/bio
+  const articlesToShow: SiteArticle[] = isOwn
+    ? combinedSorted.map((a) => ({
+        ...a,
+        author: {
+          ...(a.author || ({} as any)),
+          id: id || (a.author as any)?.id || '',
+          name: (displayAuthor as any).name,
+          avatar: (displayAuthor as any).avatar || '',
+          bio: (displayAuthor as any).bio || '',
+        } as SiteAuthor,
+      }))
+    : authorArticles;
 
   // Debug snapshot whenever core inputs change
   useEffect(() => {
@@ -784,6 +841,13 @@ export function AuthorPage() {
                     await updateName(userSettings.name);
                     await updateBio(userSettings.bio);
                     await updateAvatar(userSettings.avatarUrl || '');
+                    // Immediately reflect changes in the displayed profile (DB priority maintained on refresh)
+                    setProfileUser((prev) => prev ? ({
+                      ...prev,
+                      name: userSettings.name,
+                      bio: userSettings.bio,
+                      avatar: userSettings.avatarUrl || ''
+                    } as any) : prev);
                     setActiveTab('articles');
                     toast.success('Changes saved successfully', { duration: 1000 });
                   } catch (e) {

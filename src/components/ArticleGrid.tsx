@@ -11,6 +11,19 @@ interface ArticleGridProps {
   gridCols?: string;
 }
 
+// Format date strings nicely as DD/MM/YYYY if parseable; otherwise return original
+function formatDateDisplay(value?: string | null): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return value;
+}
+
 export function ArticleGrid({ articles, featured = false, showCategory = true, gridCols = "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" }: ArticleGridProps) {
   if (featured && articles.length >= 3) {
     // Hero layout: 1 large + 2 medium + rest in grid
@@ -42,7 +55,7 @@ export function ArticleGrid({ articles, featured = false, showCategory = true, g
                       <span className="category-label uppercase" style={{ color: '#FF00A8' }}>
                         {mainArticle.subtype === 'Brand Guide' ? 'Brand Guide' : mainArticle.category}
                       </span>
-                      <span className="date-text text-foreground/50">{mainArticle.date}</span>
+                      <span className="date-text text-foreground/50">{formatDateDisplay(mainArticle.date)}</span>
                       {mainArticle.readTime && (
                         <span className="text-foreground/50">•</span>
                       )}
@@ -86,7 +99,7 @@ export function ArticleGrid({ articles, featured = false, showCategory = true, g
                         <span className="category-label uppercase" style={{ color: '#FF00A8' }}>
                           {article.subtype === 'Brand Guide' ? 'Brand Guide' : article.category}
                         </span>
-                        <span className="date-text text-foreground/50">{article.date}</span>
+                        <span className="date-text text-foreground/50">{formatDateDisplay(article.date)}</span>
                       </div>
                     )}
                     <h3 className="text-lg leading-tight group-hover:text-[#FF00A8] transition-colors" style={{ fontFamily: 'var(--font-headlines)' }}>
@@ -124,7 +137,7 @@ export function ArticleGrid({ articles, featured = false, showCategory = true, g
                         <span className="category-label uppercase" style={{ color: '#FF00A8' }}>
                           {article.subtype === 'Brand Guide' ? 'Brand Guide' : article.category}
                         </span>
-                        <span className="date-text text-foreground/50">{article.date}</span>
+                        <span className="date-text text-foreground/50">{formatDateDisplay(article.date)}</span>
                       </div>
                     )}
                     <h3 className="text-lg leading-tight group-hover:text-[#FF00A8] transition-colors" style={{ fontFamily: 'var(--font-headlines)' }}>
@@ -165,7 +178,7 @@ export function ArticleGrid({ articles, featured = false, showCategory = true, g
                   <span className="category-label uppercase" style={{ color: '#FF00A8' }}>
                     {article.subtype === 'Brand Guide' ? 'Brand Guide' : article.category}
                   </span>
-                  <span className="date-text text-foreground/50">{article.date}</span>
+                  <span className="date-text text-foreground/50">{formatDateDisplay(article.date)}</span>
                 </div>
               )}
               <h3 className="text-lg leading-tight group-hover:text-[#FF00A8] transition-colors" style={{ fontFamily: 'var(--font-headlines)' }}>

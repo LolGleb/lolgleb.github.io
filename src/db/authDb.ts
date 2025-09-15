@@ -35,6 +35,12 @@ export async function getUserByEmail(email: string): Promise<DbUser | undefined>
   return (data as DbUser) ?? undefined;
 }
 
+export async function getUserById(id: string): Promise<DbUser | undefined> {
+  const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return (data as DbUser) ?? undefined;
+}
+
 export async function addUser(user: DbUser): Promise<void> {
   const { error } = await supabase.from(TABLE).upsert(user);
   if (error) throw error;
