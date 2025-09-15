@@ -161,17 +161,40 @@ export function SubmitPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="image">Featured Image URL</Label>
-                      <div className="relative">
-                        <Image className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-foreground/50" />
-                        <Input
-                          id="image"
-                          type="url"
-                          placeholder="https://example.com/image.jpg"
-                          value={articleForm.image}
-                          onChange={(e) => setArticleForm(prev => ({ ...prev, image: e.target.value }))}
-                          className="pl-10"
-                        />
+                      <Label htmlFor="articleImageFile" className="mb-1 block">Featured image</Label>
+                      <div className="flex items-center gap-4">
+                        <div className="relative w-20 h-14 rounded-md overflow-hidden bg-muted border border-border">
+                          {articleForm.image ? (
+                            <img src={articleForm.image} alt="Image preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-foreground/50">No image</div>
+                          )}
+                        </div>
+                        <div>
+                          <input id="articleImageFile" type="file" accept="image/*" className="hidden" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (!file.type.startsWith('image/')) {
+                              toast.error('Please select an image file');
+                              return;
+                            }
+                            const MAX_SIZE = 5 * 1024 * 1024;
+                            if (file.size > MAX_SIZE) {
+                              toast.error('Image is too large. Please choose up to 5MB.');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setArticleForm(prev => ({ ...prev, image: String(reader.result || '') }));
+                            };
+                            reader.onerror = () => toast.error('Failed to read file');
+                            reader.readAsDataURL(file);
+                          }} />
+                          <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('articleImageFile')?.click()}>
+                            Choose file
+                          </Button>
+                          <div className="text-xs text-foreground/60 mt-1">Upload an image (JPG, PNG, GIF). Up to 5MB.</div>
+                        </div>
                       </div>
                     </div>
                   </div>

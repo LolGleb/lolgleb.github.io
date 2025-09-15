@@ -114,6 +114,36 @@ export function AuthorPage() {
     theme: 'light' as 'light' | 'dark'
   });
 
+  // Local error for settings avatar picker
+  const [settingsAvatarError, setSettingsAvatarError] = useState<string | null>(null);
+
+  // Handle avatar file selection in Settings tab (convert to Data URL and store locally before saving)
+  const handleSettingsAvatarFileChange: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    try {
+      setSettingsAvatarError(null);
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        setSettingsAvatarError('Please select an image file');
+        return;
+      }
+      const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+      if (file.size > MAX_SIZE) {
+        setSettingsAvatarError('Image is too large. Please choose up to 5MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = String(reader.result || '');
+        setUserSettings((prev) => ({ ...prev, avatarUrl: dataUrl }));
+      };
+      reader.onerror = () => setSettingsAvatarError('Failed to read file');
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setSettingsAvatarError('Failed to process image');
+    }
+  };
+
   // Check if this is the current user's own profile
   const isOwn = isOwnProfile(id);
   
@@ -741,15 +771,36 @@ export function AuthorPage() {
                     </div>
                   </div>
                   <div className="mt-4">
-                    <Label htmlFor="avatarUrl">Avatar URL</Label>
-                    <Input
-                      id="avatarUrl"
-                      type="url"
-                      value={userSettings.avatarUrl}
-                      onChange={(e) => updateUserSetting('avatarUrl', e.target.value)}
-                      placeholder="https://example.com/your-avatar.jpg"
-                    />
-                    <div className="text-xs text-foreground/60 mt-1">Paste a direct link to an image (JPG, PNG, GIF). Leave empty to remove avatar.</div>
+                    <Label htmlFor="avatarFile" className="mb-2 block">Avatar</Label>
+                    <div className="flex items-center gap-4">
+                      <div className="relative w-16 h-16 rounded-full overflow-hidden bg-muted">
+                        {userSettings.avatarUrl ? (
+                          <ImageWithFallback
+                            src={userSettings.avatarUrl}
+                            alt="Avatar preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-sm text-foreground/50">
+                            {(displayAuthor as any).name
+                              .split(' ')
+                              .map((part: string) => part[0])
+                              .filter(Boolean)
+                              .slice(0, 2)
+                              .join('')
+                              .toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <input id="avatarFile" type="file" accept="image/*" onChange={handleSettingsAvatarFileChange} className="hidden" />
+                        <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('avatarFile')?.click()}>
+                          Choose file
+                        </Button>
+                        {settingsAvatarError && <div className="text-xs text-red-500 mt-1">{settingsAvatarError}</div>}
+                        <div className="text-xs text-foreground/60 mt-1">Upload an image (JPG, PNG, GIF). Up to 5MB.</div>
+                      </div>
+                    </div>
                   </div>
                   <div className="mt-4">
                     <Label htmlFor="bio">Bio</Label>

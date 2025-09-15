@@ -175,7 +175,7 @@ export function AdminPage() {
       return;
     }
     if (!image.trim()) {
-      setError('Image URL is required');
+      setError('Image is required');
       return;
     }
 
@@ -281,7 +281,7 @@ export function AdminPage() {
       return;
     }
     if (!brandLogo.trim() && !brandImage.trim()) {
-      setBrandError('Logo or Image URL is required');
+      setBrandError('Logo or Image is required');
       return;
     }
 
@@ -409,8 +409,39 @@ export function AdminPage() {
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm mb-1">Image URL</label>
-              <Input value={image} onChange={(e) => setImage(e.target.value)} placeholder="https://…" />
+              <label htmlFor="adminArticleImageFile" className="block text-sm mb-1">Image</label>
+              <div className="flex items-center gap-4">
+                <div className="relative w-24 h-16 rounded-md overflow-hidden bg-muted border border-border">
+                  {image ? (
+                    <img src={image} alt="Image preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-foreground/50">No image</div>
+                  )}
+                </div>
+                <div>
+                  <input id="adminArticleImageFile" type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith('image/')) {
+                      toast.error('Please select an image file');
+                      return;
+                    }
+                    const MAX_SIZE = 5 * 1024 * 1024;
+                    if (file.size > MAX_SIZE) {
+                      toast.error('Image is too large. Please choose up to 5MB.');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => setImage(String(reader.result || ''));
+                    reader.onerror = () => toast.error('Failed to read file');
+                    reader.readAsDataURL(file);
+                  }} />
+                  <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('adminArticleImageFile')?.click()}>
+                    Choose file
+                  </Button>
+                  <div className="text-xs text-foreground/60 mt-1">Upload an image (JPG, PNG, GIF). Up to 5MB.</div>
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-sm mb-1">Read time</label>
@@ -477,12 +508,74 @@ export function AdminPage() {
               <Input value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Brand name" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm mb-1">Logo URL</label>
-              <Input value={brandLogo} onChange={(e) => setBrandLogo(e.target.value)} placeholder="https://… (square logo)" />
+              <label htmlFor="adminBrandLogoFile" className="block text-sm mb-1">Logo</label>
+              <div className="flex items-center gap-4">
+                <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted border border-border">
+                  {brandLogo ? (
+                    <img src={brandLogo} alt="Logo preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-foreground/50">No logo</div>
+                  )}
+                </div>
+                <div>
+                  <input id="adminBrandLogoFile" type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith('image/')) {
+                      toast.error('Please select an image file');
+                      return;
+                    }
+                    const MAX_SIZE = 5 * 1024 * 1024;
+                    if (file.size > MAX_SIZE) {
+                      toast.error('Image is too large. Please choose up to 5MB.');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => setBrandLogo(String(reader.result || ''));
+                    reader.onerror = () => toast.error('Failed to read file');
+                    reader.readAsDataURL(file);
+                  }} />
+                  <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('adminBrandLogoFile')?.click()}>
+                    Choose file
+                  </Button>
+                  <div className="text-xs text-foreground/60 mt-1">Upload a square logo (JPG, PNG, GIF). Up to 5MB.</div>
+                </div>
+              </div>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm mb-1">Image URL (optional)</label>
-              <Input value={brandImage} onChange={(e) => setBrandImage(e.target.value)} placeholder="https://… (cover image)" />
+              <label htmlFor="adminBrandImageFile" className="block text-sm mb-1">Cover image (optional)</label>
+              <div className="flex items-center gap-4">
+                <div className="relative w-24 h-16 rounded-md overflow-hidden bg-muted border border-border">
+                  {brandImage ? (
+                    <img src={brandImage} alt="Cover preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-foreground/50">No image</div>
+                  )}
+                </div>
+                <div>
+                  <input id="adminBrandImageFile" type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith('image/')) {
+                      toast.error('Please select an image file');
+                      return;
+                    }
+                    const MAX_SIZE = 5 * 1024 * 1024;
+                    if (file.size > MAX_SIZE) {
+                      toast.error('Image is too large. Please choose up to 5MB.');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => setBrandImage(String(reader.result || ''));
+                    reader.onerror = () => toast.error('Failed to read file');
+                    reader.readAsDataURL(file);
+                  }} />
+                  <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('adminBrandImageFile')?.click()}>
+                    Choose file
+                  </Button>
+                  <div className="text-xs text-foreground/60 mt-1">Upload an image (JPG, PNG, GIF). Up to 5MB.</div>
+                </div>
+              </div>
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Website (optional)</label>
@@ -585,8 +678,39 @@ export function AdminPage() {
                       <Textarea value={s.excerpt} onChange={(e) => updateSub(s.id, 'excerpt', e.target.value)} rows={3} />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm mb-1">Image URL</label>
-                      <Input value={s.image || ''} onChange={(e) => updateSub(s.id, 'image', e.target.value)} placeholder="https://…" />
+                      <label htmlFor={`modImageFile-${s.id}`} className="block text-sm mb-1">Image</label>
+                      <div className="flex items-center gap-4">
+                        <div className="relative w-24 h-16 rounded-md overflow-hidden bg-muted border border-border">
+                          {s.image ? (
+                            <img src={s.image} alt="Image preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-foreground/50">No image</div>
+                          )}
+                        </div>
+                        <div>
+                          <input id={`modImageFile-${s.id}`} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (!file.type.startsWith('image/')) {
+                              toast.error('Please select an image file');
+                              return;
+                            }
+                            const MAX_SIZE = 5 * 1024 * 1024;
+                            if (file.size > MAX_SIZE) {
+                              toast.error('Image is too large. Please choose up to 5MB.');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = () => updateSub(s.id, 'image', String(reader.result || ''));
+                            reader.onerror = () => toast.error('Failed to read file');
+                            reader.readAsDataURL(file);
+                          }} />
+                          <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById(`modImageFile-${s.id}`)?.click()}>
+                            Choose file
+                          </Button>
+                          <div className="text-xs text-foreground/60 mt-1">Upload an image (JPG, PNG, GIF). Up to 5MB.</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
