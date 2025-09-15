@@ -7,11 +7,14 @@ export interface AdminBrand {
   name: string;
   logo: string; // URL to logo image
   image?: string; // URL to brand cover/hero image
-  description?: string;
+  description?: string; // "About" text
   website?: string;
-  tags?: string[];
-  madeIn?: string[];
-  priceRange?: string[]; // e.g., ["$"], ["$$"], etc.
+  tags?: string[]; // Categories
+  madeIn?: string[]; // Country of origin (store single selection as array with one item)
+  priceRange?: string[]; // e.g., ["$"], ["$$"], etc. (store single selection as array with one item)
+  rating?: number; // 1.0 .. 5.0 (0.5 step)
+  founded?: number; // Year
+  headquarters?: string; // Headquarters city/country
   featured?: boolean;
   trending?: boolean;
   topRated?: boolean;

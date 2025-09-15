@@ -29,8 +29,14 @@ export function AdminPage() {
   const [brandName, setBrandName] = useState('');
   const [brandLogo, setBrandLogo] = useState('');
   const [brandImage, setBrandImage] = useState('');
-  const [brandDescription, setBrandDescription] = useState('');
+  const [brandDescription, setBrandDescription] = useState(''); // About
   const [brandWebsite, setBrandWebsite] = useState('');
+  const [brandRating, setBrandRating] = useState<string>('');
+  const [brandFounded, setBrandFounded] = useState<string>('');
+  const [brandHeadquarters, setBrandHeadquarters] = useState<string>('');
+  const [brandMadeIn, setBrandMadeIn] = useState<string>('');
+  const [brandPrice, setBrandPrice] = useState<string>('');
+  const [brandCategories, setBrandCategories] = useState<string[]>([]);
   const [brandEditingId, setBrandEditingId] = useState<string | null>(null);
 
   const [brandLoading, setBrandLoading] = useState(false);
@@ -259,6 +265,12 @@ export function AdminPage() {
     setBrandImage(b.image || '');
     setBrandDescription(b.description || '');
     setBrandWebsite(b.website || '');
+    setBrandRating(b.rating != null ? String(b.rating) : '');
+    setBrandFounded(b.founded != null ? String(b.founded) : '');
+    setBrandHeadquarters(b.headquarters || '');
+    setBrandMadeIn(Array.isArray(b.madeIn) && b.madeIn.length ? b.madeIn[0] : '');
+    setBrandPrice(Array.isArray(b.priceRange) && b.priceRange.length ? b.priceRange[0] : '');
+    setBrandCategories(b.tags || []);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -269,6 +281,12 @@ export function AdminPage() {
     setBrandImage('');
     setBrandDescription('');
     setBrandWebsite('');
+    setBrandRating('');
+    setBrandFounded('');
+    setBrandHeadquarters('');
+    setBrandMadeIn('');
+    setBrandPrice('');
+    setBrandCategories([]);
   }
 
   async function onSubmitBrand(e: React.FormEvent) {
@@ -294,6 +312,12 @@ export function AdminPage() {
         image: brandImage.trim() || undefined,
         description: brandDescription.trim() || undefined,
         website: brandWebsite.trim() || undefined,
+        rating: brandRating ? Number(brandRating) : undefined,
+        founded: brandFounded ? Number(brandFounded) : undefined,
+        headquarters: brandHeadquarters.trim() || undefined,
+        madeIn: brandMadeIn ? [brandMadeIn] : undefined,
+        priceRange: brandPrice ? [brandPrice] : undefined,
+        tags: brandCategories.length ? brandCategories : undefined,
       };
       if (brandEditingId) {
         await updateBrand(brand);
@@ -308,6 +332,12 @@ export function AdminPage() {
       setBrandImage('');
       setBrandDescription('');
       setBrandWebsite('');
+      setBrandRating('');
+      setBrandFounded('');
+      setBrandHeadquarters('');
+      setBrandMadeIn('');
+      setBrandPrice('');
+      setBrandCategories([]);
       await refreshBrands();
     } catch (err) {
       console.error(err);
@@ -581,8 +611,75 @@ export function AdminPage() {
               <label className="block text-sm mb-1">Website (optional)</label>
               <Input value={brandWebsite} onChange={(e) => setBrandWebsite(e.target.value)} placeholder="https://brand.com" />
             </div>
+
+            {/* New Brand Meta Fields */}
+            <div>
+              <label className="block text-sm mb-1">Rating</label>
+              <Select value={brandRating} onValueChange={setBrandRating}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select rating" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['1','1.5','2','2.5','3','3.5','4','4.5','5'].map((v) => (
+                    <SelectItem key={v} value={v}>{v} ★</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Founded</label>
+              <Input type="number" inputMode="numeric" min={1800} max={2100} value={brandFounded} onChange={(e) => setBrandFounded(e.target.value)} placeholder="Year" />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Headquarters</label>
+              <Input value={brandHeadquarters} onChange={(e) => setBrandHeadquarters(e.target.value)} placeholder="City, Country" />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Made In</label>
+              <Select value={brandMadeIn} onValueChange={setBrandMadeIn}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['USA','China','Spain','France','Italy'].map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Price</label>
+              <Select value={brandPrice} onValueChange={setBrandPrice}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select price" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['$','$$','$$$'].map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="md:col-span-2">
-              <label className="block text-sm mb-1">Description (optional)</label>
+              <label className="block text-sm mb-2">Categories</label>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                {['Streetwear','Performance','Collabs','Comfort','Social Impact','NYC','Hype'].map((opt) => {
+                  const checked = brandCategories.includes(opt);
+                  return (
+                    <div key={opt} className="flex items-center space-x-2">
+                      <Checkbox id={`cat-${opt}`} checked={checked} onCheckedChange={(v) => {
+                        const on = Boolean(v);
+                        setBrandCategories((prev) => on ? Array.from(new Set([...prev, opt])) : prev.filter((x) => x !== opt));
+                      }} />
+                      <label htmlFor={`cat-${opt}`} className="text-sm">{opt}</label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm mb-1">About</label>
               <Textarea value={brandDescription} onChange={(e) => setBrandDescription(e.target.value)} placeholder="Short description" rows={4} />
             </div>
             <div className="md:col-span-2">
