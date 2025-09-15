@@ -1,5 +1,6 @@
-// Lightweight client-side Users DB for auth (IndexedDB with localStorage fallback)
+// Supabase-backed Users DB for auth
 // NOTE: This is for demo purposes only. Do NOT store plaintext passwords in production.
+import { supabase } from './supabaseClient';
 
 export interface DbUser {
   id: string; // uuid
@@ -11,48 +12,7 @@ export interface DbUser {
   createdAt: string; // ISO
 }
 
-const DB_NAME = 'tts_users_db';
-const STORE_NAME = 'users';
-const DB_VERSION = 1;
-
-function hasIndexedDB(): boolean {
-  return typeof indexedDB !== 'undefined';
-}
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('email_ci', 'email', { unique: true });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-// LocalStorage fallback
-const LS_KEY = 'tts_users_ls';
-
-function lsRead(): DbUser[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? (JSON.parse(raw) as DbUser[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function lsWrite(data: DbUser[]) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
-  } catch {
-    // ignore
-  }
-}
+const TABLE = 'users';
 
 export function generateUserId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -63,53 +23,21 @@ export function generateUserId(): string {
 }
 
 export async function getAllUsers(): Promise<DbUser[]> {
-  if (hasIndexedDB()) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const request = store.getAll();
-      request.onsuccess = () => resolve((request.result as DbUser[]) || []);
-      request.onerror = () => reject(request.error);
-    });
-  }
-  return lsRead();
+  const { data, error } = await supabase.from(TABLE).select('*');
+  if (error) throw error;
+  return (data ?? []) as DbUser[];
 }
 
 export async function getUserByEmail(email: string): Promise<DbUser | undefined> {
   const emailNorm = email.trim().toLowerCase();
-  if (hasIndexedDB()) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      // We created an index but to keep compatibility across browsers, we can just scan all for simplicity
-      const req = store.getAll();
-      req.onsuccess = () => {
-        const all = (req.result as DbUser[]) || [];
-        resolve(all.find((u) => u.email.toLowerCase() === emailNorm));
-      };
-      req.onerror = () => reject(req.error);
-    });
-  }
-  return lsRead().find((u) => u.email.toLowerCase() === emailNorm);
+  const { data, error } = await supabase.from(TABLE).select('*').eq('email', emailNorm).maybeSingle();
+  if (error) throw error;
+  return (data as DbUser) ?? undefined;
 }
 
 export async function addUser(user: DbUser): Promise<void> {
-  if (hasIndexedDB()) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      store.put(user);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  }
-  const all = lsRead();
-  all.push(user);
-  lsWrite(all);
+  const { error } = await supabase.from(TABLE).upsert(user);
+  if (error) throw error;
 }
 
 export async function registerUser(name: string, email: string, password: string): Promise<DbUser> {
@@ -123,7 +51,6 @@ export async function registerUser(name: string, email: string, password: string
     name: name.trim() || emailNorm,
     email: emailNorm,
     password, // not secure; demo only
-    // No default placeholder avatar — user can upload their own in profile settings
     bio: '',
     createdAt: new Date().toISOString(),
   } as DbUser;
@@ -144,71 +71,27 @@ export async function loginUser(email: string, password: string): Promise<DbUser
 }
 
 export async function updateUserAvatar(userId: string, avatarUrl: string): Promise<DbUser> {
-  if (hasIndexedDB()) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const getReq = store.get(userId);
-      getReq.onsuccess = () => {
-        const user = (getReq.result as DbUser) || undefined;
-        if (!user) {
-          tx.abort();
-          reject(new Error('User not found'));
-          return;
-        }
-        const updated: DbUser = { ...user, avatar: avatarUrl };
-        store.put(updated);
-        tx.oncomplete = () => resolve(updated);
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-      };
-      getReq.onerror = () => reject(getReq.error);
-    });
-  }
-  const all = lsRead();
-  const idx = all.findIndex((u) => u.id === userId);
-  if (idx === -1) {
-    throw new Error('User not found');
-  }
-  const updated: DbUser = { ...all[idx], avatar: avatarUrl };
-  all[idx] = updated;
-  lsWrite(all);
-  return updated;
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ avatar: avatarUrl })
+    .eq('id', userId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('User not found');
+  return data as DbUser;
 }
 
 export async function updateUserBio(userId: string, bio: string): Promise<DbUser> {
-  if (hasIndexedDB()) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const getReq = store.get(userId);
-      getReq.onsuccess = () => {
-        const user = (getReq.result as DbUser) || undefined;
-        if (!user) {
-          tx.abort();
-          reject(new Error('User not found'));
-          return;
-        }
-        const updated: DbUser = { ...user, bio };
-        store.put(updated);
-        tx.oncomplete = () => resolve(updated);
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-      };
-      getReq.onerror = () => reject(getReq.error);
-    });
-  }
-  const all = lsRead();
-  const idx = all.findIndex((u) => u.id === userId);
-  if (idx === -1) {
-    throw new Error('User not found');
-  }
-  const updated: DbUser = { ...all[idx], bio };
-  all[idx] = updated;
-  lsWrite(all);
-  return updated;
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ bio })
+    .eq('id', userId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('User not found');
+  return data as DbUser;
 }
 
 export async function updateUserName(userId: string, name: string): Promise<DbUser> {
@@ -216,35 +99,13 @@ export async function updateUserName(userId: string, name: string): Promise<DbUs
   if (!safe) {
     throw new Error('Name cannot be empty');
   }
-  if (hasIndexedDB()) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const getReq = store.get(userId);
-      getReq.onsuccess = () => {
-        const user = (getReq.result as DbUser) || undefined;
-        if (!user) {
-          tx.abort();
-          reject(new Error('User not found'));
-          return;
-        }
-        const updated: DbUser = { ...user, name: safe };
-        store.put(updated);
-        tx.oncomplete = () => resolve(updated);
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-      };
-      getReq.onerror = () => reject(getReq.error);
-    });
-  }
-  const all = lsRead();
-  const idx = all.findIndex((u) => u.id === userId);
-  if (idx === -1) {
-    throw new Error('User not found');
-  }
-  const updated: DbUser = { ...all[idx], name: safe };
-  all[idx] = updated;
-  lsWrite(all);
-  return updated;
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ name: safe })
+    .eq('id', userId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('User not found');
+  return data as DbUser;
 }
