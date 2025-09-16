@@ -58,6 +58,7 @@ export interface Brand {
   priceRange?: string[];
   about?: string;
   tags?: string[];
+  // Legacy/mock rating structure
   rating?: {
     culturalImpact: number;
     collabPower: number;
@@ -66,6 +67,8 @@ export interface Brand {
     loyalty: number;
     drops: number;
   };
+  // DB-backed simple average rating (1..5, halves allowed)
+  numericRating?: number;
   featured?: boolean;
   trending?: boolean;
   topRated?: boolean;

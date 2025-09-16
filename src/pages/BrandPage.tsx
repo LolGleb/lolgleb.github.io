@@ -51,9 +51,12 @@ export function BrandPage() {
       return <div>Brand not found</div>;
     }
 
-    // Render simplified view for admin-created brand
+    // Render view for admin-created brand with full meta
     const b = dbBrand as AdminBrand;
     const cover = b.image || b.logo;
+    const price = Array.isArray(b.priceRange) && b.priceRange.length ? b.priceRange[0] : undefined;
+    const madeIn = Array.isArray(b.madeIn) ? b.madeIn : undefined;
+    const stars = typeof b.rating === 'number' ? Math.min(Math.max(Math.round(b.rating), 1), 5) : undefined;
 
     return (
       <>
@@ -63,43 +66,286 @@ export function BrandPage() {
           keywords={`${b.name}, sock brand`}
         />
         <main className="min-h-screen bg-background">
-          <section className="min-h-[60vh] flex items-center">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12 w-full">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-                <div className="order-2 lg:order-1 space-y-6 lg:space-y-8 flex flex-col justify-center">
-                  <div className="flex items-center gap-4">
-                    <Link to="/brands" className="flex items-center text-foreground/60 hover:text-[#FF00A8] transition-colors">
-                      <ArrowLeft className="w-5 h-5" />
-                    </Link>
-                  </div>
-                  <h1 className="text-3xl lg:text-5xl leading-tight" style={{ fontFamily: 'var(--font-headlines)' }}>{b.name}</h1>
-                  {b.description && (
-                    <p className="text-lg lg:text-xl text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-                      {b.description}
-                    </p>
-                  )}
-                  {b.website && (
-                    <div>
-                      <a
-                        href={b.website}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-[#FF00A8] hover:opacity-80"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        Visit website <ExternalLink className="w-4 h-4" />
-                      </a>
-                    </div>
+          {/* Hero Image - Full Screen on Mobile */}
+          <div className="w-full h-screen lg:hidden">
+            <ImageWithFallback
+              src={cover}
+              alt={b.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+
+          {/* Desktop Hero Section */}
+          <div className="hidden lg:flex lg:min-h-screen">
+            {/* Left side - Brand info */}
+            <div className="lg:w-1/2 flex flex-col justify-center p-4 sm:p-6 lg:p-12">
+              {/* Back navigation & Breadcrumbs */}
+              <div className="mb-6">
+                <Breadcrumb className="mb-4">
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink asChild>
+                        <Link to="/">Home</Link>
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbLink asChild>
+                        <Link to="/brands">Brands</Link>
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>{b.name}</BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
+                
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  asChild
+                  className="text-foreground/60 hover:text-[#FF00A8] px-0"
+                >
+                  <Link to="/brands">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to brands
+                  </Link>
+                </Button>
+              </div>
+
+              {/* Brand header */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 bg-white border border-border rounded-full flex items-center justify-center overflow-hidden">
+                  {typeof b.logo === 'string' && /^(https?:\/\/|data:|\/\/)/.test(b.logo) ? (
+                    <ImageWithFallback src={b.logo} alt={`${b.name} logo`} className="w-full h-full object-contain" />
+                  ) : (
+                    <span className="text-lg font-semibold" style={{ fontFamily: 'var(--font-body)' }}>{String(b.logo)}</span>
                   )}
                 </div>
-                <div className="order-1 lg:order-2">
-                  <div className="w-full h-[60vh] lg:h-auto lg:aspect-[4/5] overflow-hidden rounded-none lg:rounded-md">
-                    <ImageWithFallback src={cover} alt={b.name} className="w-full h-full object-cover" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h1 className="text-2xl lg:text-3xl" style={{ fontFamily: 'var(--font-headlines)' }}>
+                      {b.name}
+                    </h1>
+                    <div className="flex">
+                      {Array.from({ length: stars || 0 }).map((_, i) => (
+                        <Star key={i} className={`w-4 h-4 ${i < (stars || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                      ))}
+                    </div>
+                    <FavoriteButton 
+                      item={{
+                        id: b.id,
+                        title: b.name,
+                        type: 'brand',
+                        image: cover || '',
+                        description: b.description || ''
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Brand intro */}
+              {b.description && (
+                <div className="mb-6">
+                  <h3 className="text-base mb-3" style={{ fontFamily: 'var(--font-headlines)' }}>
+                    {b.name} Description
+                  </h3>
+                  <p className="text-foreground/80 leading-relaxed">
+                    {b.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Brand details */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="mb-2">
+                    <span className="text-foreground/60 uppercase tracking-wide">FOUNDED</span>
+                    <div className="mt-1">{b.founded}</div>
+                  </div>
+                  <div className="mb-2">
+                    <span className="text-foreground/60 uppercase tracking-wide">MADE IN</span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {madeIn?.map((country) => (
+                        <Badge key={country} variant="outline" className="text-xs">
+                          {country}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2">
+                    <span className="text-foreground/60 uppercase tracking-wide">HEADQUARTERS</span>
+                    <div className="mt-1">{b.headquarters}</div>
+                  </div>
+                  <div className="mb-2">
+                    <span className="text-foreground/60 uppercase tracking-wide">PRICE</span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {Array.isArray(b.priceRange) && b.priceRange.map((price) => (
+                        <Badge key={price} variant="outline" className="text-xs">
+                          {price}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </section>
+
+            {/* Right side - Hero image on Desktop */}
+            <div className="lg:w-1/2">
+              <div className="h-screen overflow-hidden">
+                <ImageWithFallback
+                  src={cover}
+                  alt={b.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Content */}
+          <div className="lg:hidden px-4 py-6">
+            {/* Back navigation & Breadcrumbs */}
+            <div className="mb-6">
+              <Breadcrumb className="mb-4">
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link to="/">Home</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link to="/brands">Brands</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{b.name}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+              
+              <Button 
+                variant="ghost" 
+                size="sm"
+                asChild
+                className="text-foreground/60 hover:text-[#FF00A8] px-0"
+              >
+                <Link to="/brands">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to brands
+                </Link>
+              </Button>
+            </div>
+
+            {/* Brand header */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-16 h-16 bg-white border border-border rounded-full flex items-center justify-center overflow-hidden">
+                {typeof b.logo === 'string' && /^(https?:\/\/|data:|\/\/)/.test(b.logo) ? (
+                  <ImageWithFallback src={b.logo} alt={`${b.name} logo`} className="w-full h-full object-contain" />
+                ) : (
+                  <span className="text-lg font-semibold" style={{ fontFamily: 'var(--font-body)' }}>{String(b.logo)}</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-1">
+                  <h1 className="text-2xl" style={{ fontFamily: 'var(--font-headlines)' }}>
+                    {b.name}
+                  </h1>
+                  <div className="flex">
+                    {Array.from({ length: stars || 0 }).map((_, i) => (
+                      <Star key={i} className={`w-4 h-4 ${i < (stars || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                    ))}
+                  </div>
+                  <FavoriteButton 
+                    item={{
+                      id: b.id,
+                      title: b.name,
+                      type: 'brand',
+                      image: cover || '',
+                      description: b.description || ''
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Brand intro */}
+            <p className="text-foreground/80 mb-6 leading-relaxed">
+              {(b as any).about || b.description}
+            </p>
+
+            {/* Brand details */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="mb-2">
+                  <span className="text-foreground/60 uppercase tracking-wide">FOUNDED</span>
+                  <div className="mt-1">{b.founded}</div>
+                </div>
+                <div className="mb-2">
+                  <span className="text-foreground/60 uppercase tracking-wide">MADE IN</span>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {madeIn?.map((country) => (
+                      <Badge key={country} variant="outline" className="text-xs">
+                        {country}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="mb-2">
+                  <span className="text-foreground/60 uppercase tracking-wide">HEADQUARTERS</span>
+                  <div className="mt-1">{b.headquarters}</div>
+                </div>
+                <div className="mb-2">
+                  <span className="text-foreground/60 uppercase tracking-wide">PRICE</span>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {Array.isArray(b.priceRange) && b.priceRange.map((price) => (
+                      <Badge key={price} variant="outline" className="text-xs">
+                        {price}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Content sections */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+            {/* About & Tags Section */}
+            <div className="lg:flex lg:gap-12 mb-12">
+              <div className="lg:w-2/3">
+                <h2 className="text-xl mb-4" style={{ fontFamily: 'var(--font-headlines)' }}>
+                  About {b.name}
+                </h2>
+                <p className="text-foreground/80 leading-relaxed">
+                  {(b as any).about || b.description}
+                </p>
+              </div>
+              
+              {/* Tags */}
+              <div className="lg:w-1/3 mt-6 lg:mt-0">
+                <h3 className="text-lg mb-3" style={{ fontFamily: 'var(--font-headlines)' }}>
+                  Categories
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {(Array.isArray(b.tags) ? b.tags : []).map((tag) => (
+                    <Badge key={tag} variant="outline">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </main>
       </>
     );

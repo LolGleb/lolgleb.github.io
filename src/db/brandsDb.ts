@@ -22,8 +22,39 @@ export interface AdminBrand {
 
 const TABLE = 'brands';
 
+// Remove undefined fields from the payload
+function stripUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out as Partial<T>;
+}
+
+// Retry helper: if schema is missing new columns, retry without them
+function omitNewOptionalColumns(brand: Partial<AdminBrand>): Partial<AdminBrand> {
+  const clone = { ...brand };
+  delete (clone as any).rating;
+  delete (clone as any).founded;
+  delete (clone as any).headquarters;
+  return clone;
+}
+
+function isMissingColumnError(err: any): boolean {
+  const code = err?.code || err?.details?.code;
+  const msg: string = err?.message || '';
+  // PGRST204 is commonly returned when a column is not found in schema cache
+  return code === 'PGRST204' || /could not find.*column/i.test(msg);
+}
+
 export async function addBrand(brand: AdminBrand): Promise<void> {
-  const { error } = await supabase.from(TABLE).upsert(brand);
+  const full = stripUndefined(brand);
+  let { error } = await supabase.from(TABLE).upsert(full);
+  if (error && isMissingColumnError(error)) {
+    const minimal = omitNewOptionalColumns(full);
+    const retry = await supabase.from(TABLE).upsert(minimal);
+    error = retry.error;
+  }
   if (error) throw error;
 }
 
@@ -54,6 +85,12 @@ export async function getBrandByIdAdmin(id: string): Promise<AdminBrand | undefi
 }
 
 export async function updateBrand(brand: AdminBrand): Promise<void> {
-  const { error } = await supabase.from(TABLE).upsert(brand);
+  const full = stripUndefined(brand);
+  let { error } = await supabase.from(TABLE).upsert(full);
+  if (error && isMissingColumnError(error)) {
+    const minimal = omitNewOptionalColumns(full);
+    const retry = await supabase.from(TABLE).upsert(minimal);
+    error = retry.error;
+  }
   if (error) throw error;
 }

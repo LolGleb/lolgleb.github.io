@@ -21,10 +21,14 @@ interface BrandsSectionProps {
 }
 
 function NewBrandCard({ brand }: { brand: Brand }) {
-  // Calculate average rating for stars
-  const avgRating = brand.rating ? 
-    Math.round((brand.rating.culturalImpact + brand.rating.collabPower + brand.rating.creativity + brand.rating.popularity + brand.rating.loyalty) / 5) : 4;
-  const stars = Math.min(Math.max(Math.round(avgRating / 2), 1), 5);
+  // Calculate stars from either DB numericRating (1..5, halves allowed) or legacy mock rating
+  let stars = 4;
+  if (typeof brand.numericRating === 'number') {
+    stars = Math.min(Math.max(Math.round(brand.numericRating), 1), 5);
+  } else if (brand.rating) {
+    const avgOutOf10 = (brand.rating.culturalImpact + brand.rating.collabPower + brand.rating.creativity + brand.rating.popularity + brand.rating.loyalty) / 5;
+    stars = Math.min(Math.max(Math.round(avgOutOf10 / 2), 1), 5);
+  }
   
   // Price level (convert price range to dollar signs)
   const getPriceLevel = (priceRange?: string[]) => {
@@ -102,6 +106,8 @@ export function BrandsSection({
           image: b.image || b.logo,
           description: b.description,
           website: b.website,
+          priceRange: b.priceRange,
+          numericRating: typeof b.rating === 'number' ? b.rating : undefined,
         }));
         setDbBrands(mapped);
       } catch {
