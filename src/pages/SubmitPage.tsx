@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, User, Send, Image, Tag } from 'lucide-react';
+import { Mail, User, Send, Image as ImageIcon, Tag } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { ContentEditor, ContentEditorHandle } from '../components/ContentEditor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../contexts/AuthContext';
 import { mockTags } from '../data/mockData';
@@ -15,6 +16,7 @@ import { addSubmission, ArticleSubmission, generateSubmissionId } from '../db/su
 export function SubmitPage() {
   const { isAuthenticated, currentUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const contentRef = useRef<ContentEditorHandle | null>(null);
   
   // Form state for creating article
   const [articleForm, setArticleForm] = useState({
@@ -237,17 +239,64 @@ export function SubmitPage() {
                 </h2>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="content">Write your story</Label>
-                  <Textarea
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="content">Write your story</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="contentImageFiles"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (!files.length) return;
+                          const MAX_SIZE = 5 * 1024 * 1024;
+                          const valid = files.filter(f => f.type.startsWith('image/') && f.size <= MAX_SIZE);
+                          const tooBig = files.filter(f => f.size > MAX_SIZE);
+                          const invalid = files.filter(f => !f.type.startsWith('image/'));
+                          if (invalid.length) toast.error('Only image files are allowed');
+                          if (tooBig.length) toast.error('Some images exceeded 5MB and were skipped');
+                          try {
+                            const dataUrls = await Promise.all(valid.map(f => new Promise<string>((resolve, reject) => {
+                              const reader = new FileReader();
+                              reader.onload = () => resolve(String(reader.result || ''));
+                              reader.onerror = () => reject(new Error('Failed to read file'));
+                              reader.readAsDataURL(f);
+                            })));
+                            contentRef.current?.insertImageBlocks(dataUrls.map((src, i) => ({ src, alt: valid[i].name })));
+                            if (!contentRef.current) {
+                              // Fallback: append markdown blocks if editor ref is unavailable
+                              const blocks = dataUrls.map((src, i) => `![${valid[i].name}](${src})`).join('\n\n');
+                              setArticleForm(prev => ({ ...prev, content: `${prev.content}\n\n${blocks}\n\n` }));
+                            }
+                          } catch (err) {
+                            console.error(err);
+                            toast.error('Failed to insert image');
+                          } finally {
+                            // Reset input so the same file can be selected again later
+                            e.currentTarget.value = '';
+                          }
+                        }}
+                      />
+                      <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('contentImageFiles')?.click()}>
+                        <ImageIcon className="w-4 h-4 mr-2" /> Add image
+                      </Button>
+                    </div>
+                  </div>
+                  <ContentEditor
                     id="content"
+                    ref={contentRef}
                     placeholder="Share your insights, experiences, or news about sock culture. Write in a conversational tone that matches our editorial style..."
                     value={articleForm.content}
-                    onChange={(e) => setArticleForm(prev => ({ ...prev, content: e.target.value }))}
-                    rows={12}
-                    required
+                    onChange={(val) => setArticleForm(prev => ({ ...prev, content: val }))}
+                    style={{ minHeight: '16rem' }}
                   />
                   <p className="text-xs text-foreground/60">
                     Tip: Include personal experiences, specific details, and your unique perspective.
+                  </p>
+                  <p className="text-xs text-foreground/60">
+                    You can now insert images with the button above. They will be embedded into your content and displayed in the article.
                   </p>
                 </div>
               </div>

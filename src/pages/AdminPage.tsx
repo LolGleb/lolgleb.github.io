@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addArticle, AdminArticle, AdminArticleCategory, deleteArticle, generateId, getAllArticles, updateArticle } from '../db/articlesDb';
 import { addBrand, AdminBrand, deleteBrand as deleteBrandDb, generateBrandId, getAllBrands, updateBrand } from '../db/brandsDb';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
+import { ContentEditor, ContentEditorHandle } from '../components/ContentEditor';
 import { Button } from '../components/ui/button';
+import { Image as ImageIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { ArticleSubmission, getPendingSubmissions, updateSubmission, approveSubmission, declineSubmission, deleteSubmission } from '../db/submissionsDb';
@@ -48,6 +50,11 @@ export function AdminPage() {
   const [pendingSubs, setPendingSubs] = useState<ArticleSubmission[]>([]);
   const [modError, setModError] = useState<string | null>(null);
   const [modSavingId, setModSavingId] = useState<string | null>(null);
+
+  // Refs for content editors per submission (to insert images at caret)
+  const contentRefs = useRef<Record<string, ContentEditorHandle | null>>({});
+  // Editor ref for Articles tab content field
+  const articleContentRef = useRef<ContentEditorHandle | null>(null);
 
   // Admin simple auth state
   const ADMIN_LS_KEY = 'tts_admin_auth';
@@ -482,8 +489,58 @@ export function AdminPage() {
               <label htmlFor="featured" className="text-sm">Featured</label>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm mb-1">Content (optional)</label>
-              <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Full content (optional)" rows={6} />
+              <div className="flex items-center justify-between">
+                <label className="block text-sm">Content (optional)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="articleContentImageFiles"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (!files.length) return;
+                      const MAX_SIZE = 5 * 1024 * 1024;
+                      const valid = files.filter(f => f.type.startsWith('image/') && f.size <= MAX_SIZE);
+                      const tooBig = files.filter(f => f.size > MAX_SIZE);
+                      const invalid = files.filter(f => !f.type.startsWith('image/'));
+                      if (invalid.length) toast.error('Only image files are allowed');
+                      if (tooBig.length) toast.error('Some images exceeded 5MB and were skipped');
+                      try {
+                        const dataUrls = await Promise.all(valid.map(f => new Promise<string>((resolve, reject) => {
+                          const reader = new FileReader();
+                          reader.onload = () => resolve(String(reader.result || ''));
+                          reader.onerror = () => reject(new Error('Failed to read file'));
+                          reader.readAsDataURL(f);
+                        })));
+                        if (articleContentRef.current) {
+                          articleContentRef.current.insertImageBlocks(dataUrls.map((src, i) => ({ src, alt: valid[i].name })));
+                        } else {
+                          const blocks = dataUrls.map((src, i) => `![${valid[i].name}](${src})`).join('\n\n');
+                          setContent(prev => `${prev}\n\n${blocks}\n\n`);
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        toast.error('Failed to insert image');
+                      } finally {
+                        e.currentTarget.value = '';
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('articleContentImageFiles')?.click()}>
+                    <ImageIcon className="w-4 h-4 mr-2" /> Add image
+                  </Button>
+                </div>
+              </div>
+              <ContentEditor
+                id="adminContent"
+                ref={articleContentRef}
+                placeholder="Full content (optional). Use the Add image button to insert images."
+                value={content}
+                onChange={(val) => setContent(val)}
+                style={{ minHeight: '16rem' }}
+              />
             </div>
             <div className="md:col-span-2">
               {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
@@ -812,8 +869,59 @@ export function AdminPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm mb-1">Content</label>
-                    <Textarea value={s.content} onChange={(e) => updateSub(s.id, 'content', e.target.value)} rows={6} />
+                    <div className="flex items-center justify-between">
+                      <label htmlFor={`modContent-${s.id}`} className="block text-sm">Content</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          id={`modContentImageFiles-${s.id}`}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (!files.length) return;
+                            const MAX_SIZE = 5 * 1024 * 1024;
+                            const valid = files.filter(f => f.type.startsWith('image/') && f.size <= MAX_SIZE);
+                            const tooBig = files.filter(f => f.size > MAX_SIZE);
+                            const invalid = files.filter(f => !f.type.startsWith('image/'));
+                            if (invalid.length) toast.error('Only image files are allowed');
+                            if (tooBig.length) toast.error('Some images exceeded 5MB and were skipped');
+                            try {
+                              const dataUrls = await Promise.all(valid.map(f => new Promise<string>((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(String(reader.result || ''));
+                                reader.onerror = () => reject(new Error('Failed to read file'));
+                                reader.readAsDataURL(f);
+                              })));
+                              const editor = contentRefs.current[s.id];
+                              if (editor) {
+                                editor.insertImageBlocks(dataUrls.map((src, i) => ({ src, alt: valid[i].name })));
+                              } else {
+                                const blocks = dataUrls.map((src, i) => `![${valid[i].name}](${src})`).join('\n\n');
+                                updateSub(s.id, 'content', `${s.content || ''}\n\n${blocks}\n\n`);
+                              }
+                            } catch (err) {
+                              console.error(err);
+                              toast.error('Failed to insert image');
+                            } finally {
+                              e.currentTarget.value = '';
+                            }
+                          }}
+                        />
+                        <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById(`modContentImageFiles-${s.id}`)?.click()}>
+                          <ImageIcon className="w-4 h-4 mr-2" /> Add image
+                        </Button>
+                      </div>
+                    </div>
+                    <ContentEditor
+                      id={`modContent-${s.id}`}
+                      ref={(el) => { contentRefs.current[s.id] = el; }}
+                      placeholder="Edit content. Use the Add image button to insert images."
+                      value={s.content}
+                      onChange={(val) => updateSub(s.id, 'content', val)}
+                      style={{ minHeight: '16rem' }}
+                    />
                   </div>
 
                   <div>

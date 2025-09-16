@@ -18,6 +18,7 @@ import { useEngagement } from '../contexts/EngagementContext';
 import { calculateReadingTime, formatReadingTime } from '../utils/readingTime';
 import { getArticleByIdAdmin, AdminArticle } from '../db/articlesDb';
 import { getSubmissionById } from '../db/submissionsDb';
+import { RichContent } from '../components/RichContent';
 
 export function ArticlePage() {
   const { id } = useParams<{ id: string }>();
@@ -154,11 +155,7 @@ export function ArticlePage() {
           <section className="py-12 lg:py-16">
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
               {a.content ? (
-                <div className="space-y-6 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-                  <p style={{ whiteSpace: 'pre-line' }}>
-                    {a.content}
-                  </p>
-                </div>
+                <RichContent content={a.content} className="space-y-6 text-lg leading-relaxed" />
               ) : (
                 <p className="text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
                   No additional content provided for this article.
