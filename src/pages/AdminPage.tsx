@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { ContentEditor, ContentEditorHandle } from '../components/ContentEditor';
 import { Button } from '../components/ui/button';
-import { Image as ImageIcon } from 'lucide-react';
+import { Image as ImageIcon, Heading2, Heading3 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { ArticleSubmission, getPendingSubmissions, updateSubmission, approveSubmission, declineSubmission, deleteSubmission } from '../db/submissionsDb';
@@ -50,11 +50,13 @@ export function AdminPage() {
   const [pendingSubs, setPendingSubs] = useState<ArticleSubmission[]>([]);
   const [modError, setModError] = useState<string | null>(null);
   const [modSavingId, setModSavingId] = useState<string | null>(null);
+  const [headingLevels, setHeadingLevels] = useState<Record<string, number>>({});
 
   // Refs for content editors per submission (to insert images at caret)
   const contentRefs = useRef<Record<string, ContentEditorHandle | null>>({});
   // Editor ref for Articles tab content field
   const articleContentRef = useRef<ContentEditorHandle | null>(null);
+  const [articleHeadingLevel, setArticleHeadingLevel] = useState<number>(0);
 
   // Admin simple auth state
   const ADMIN_LS_KEY = 'tts_admin_auth';
@@ -531,6 +533,12 @@ export function AdminPage() {
                   <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('articleContentImageFiles')?.click()}>
                     <ImageIcon className="w-4 h-4 mr-2" /> Add image
                   </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => articleContentRef.current?.toggleHeading(2)} aria-pressed={articleHeadingLevel === 2} className={articleHeadingLevel === 2 ? 'bg-[#FF00A8]/10 border-[#FF00A8] text-[#FF00A8]' : ''} title="H2">
+                    <Heading2 className="w-4 h-4" />
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => articleContentRef.current?.toggleHeading(3)} aria-pressed={articleHeadingLevel === 3} className={articleHeadingLevel === 3 ? 'bg-[#FF00A8]/10 border-[#FF00A8] text-[#FF00A8]' : ''} title="H3">
+                    <Heading3 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
               <ContentEditor
@@ -540,6 +548,7 @@ export function AdminPage() {
                 value={content}
                 onChange={(val) => setContent(val)}
                 style={{ minHeight: '16rem' }}
+                onFormatStateChange={(f) => setArticleHeadingLevel(f.headingLevel)}
               />
             </div>
             <div className="md:col-span-2">
@@ -912,6 +921,12 @@ export function AdminPage() {
                         <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById(`modContentImageFiles-${s.id}`)?.click()}>
                           <ImageIcon className="w-4 h-4 mr-2" /> Add image
                         </Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => contentRefs.current[s.id]?.toggleHeading(2)} aria-pressed={headingLevels[s.id] === 2} className={headingLevels[s.id] === 2 ? 'bg-[#FF00A8]/10 border-[#FF00A8] text-[#FF00A8]' : ''} title="H2">
+                          <Heading2 className="w-4 h-4" />
+                        </Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => contentRefs.current[s.id]?.toggleHeading(3)} aria-pressed={headingLevels[s.id] === 3} className={headingLevels[s.id] === 3 ? 'bg-[#FF00A8]/10 border-[#FF00A8] text-[#FF00A8]' : ''} title="H3">
+                          <Heading3 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                     <ContentEditor
@@ -921,6 +936,7 @@ export function AdminPage() {
                       value={s.content}
                       onChange={(val) => updateSub(s.id, 'content', val)}
                       style={{ minHeight: '16rem' }}
+                      onFormatStateChange={(f) => setHeadingLevels((prev) => ({ ...prev, [s.id]: f.headingLevel }))}
                     />
                   </div>
 

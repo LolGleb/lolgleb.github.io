@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, User, Send, Image as ImageIcon, Tag } from 'lucide-react';
+import { Mail, User, Send, Image as ImageIcon, Tag, Heading2, Heading3 } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -17,6 +17,7 @@ export function SubmitPage() {
   const { isAuthenticated, currentUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const contentRef = useRef<ContentEditorHandle | null>(null);
+  const [headingLevel, setHeadingLevel] = useState<number>(0);
   
   // Form state for creating article
   const [articleForm, setArticleForm] = useState({
@@ -282,6 +283,12 @@ export function SubmitPage() {
                       <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById('contentImageFiles')?.click()}>
                         <ImageIcon className="w-4 h-4 mr-2" /> Add image
                       </Button>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => contentRef.current?.toggleHeading(2)} aria-pressed={headingLevel === 2} className={headingLevel === 2 ? 'bg-[#FF00A8]/10 border-[#FF00A8] text-[#FF00A8]' : ''} title="H2">
+                        <Heading2 className="w-4 h-4" />
+                      </Button>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => contentRef.current?.toggleHeading(3)} aria-pressed={headingLevel === 3} className={headingLevel === 3 ? 'bg-[#FF00A8]/10 border-[#FF00A8] text-[#FF00A8]' : ''} title="H3">
+                        <Heading3 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                   <ContentEditor
@@ -291,6 +298,7 @@ export function SubmitPage() {
                     value={articleForm.content}
                     onChange={(val) => setArticleForm(prev => ({ ...prev, content: val }))}
                     style={{ minHeight: '16rem' }}
+                    onFormatStateChange={(f) => setHeadingLevel(f.headingLevel)}
                   />
                   <p className="text-xs text-foreground/60">
                     Tip: Include personal experiences, specific details, and your unique perspective.

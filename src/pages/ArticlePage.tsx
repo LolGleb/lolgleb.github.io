@@ -323,11 +323,7 @@ export function ArticlePage() {
               {/* Article Text */}
               <div className="max-w-3xl space-y-6">
                 {article.content ? (
-                  article.content.split('\n\n').map((paragraph, index) => (
-                    <p key={index} className="text-lg leading-relaxed text-foreground/80">
-                      {paragraph}
-                    </p>
-                  ))
+                  <RichContent content={article.content} className="space-y-6 text-lg leading-relaxed" />
                 ) : (
                   <>
                     <p className="text-lg leading-relaxed text-foreground/80">

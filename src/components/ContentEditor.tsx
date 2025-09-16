@@ -2,6 +2,7 @@ import React, { useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 
 export interface ContentEditorHandle {
   insertImageBlocks: (images: Array<{ src: string; alt?: string }>) => void;
+  toggleHeading: (level: 1 | 2 | 3 | 4 | 5 | 6) => void;
   focus: () => void;
 }
 
@@ -12,6 +13,7 @@ interface ContentEditorProps {
   placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
+  onFormatStateChange?: (state: { headingLevel: 0 | 1 | 2 | 3 | 4 | 5 | 6 }) => void;
 }
 
 // Utility: escape HTML
@@ -24,6 +26,7 @@ function esc(s: string) {
 
 // Reuse the same minimal markdown we already support in RichContent
 const mdImgRegex = /^!\[(.*?)\]\((\S+?)(?:\s+\"([^\"]+)\")?\)$/; // ![alt](url "title")
+const mdHeadingRegex = /^(#{1,6})\s+(.*)$/; // # Heading
 
 function isImageUrl(url: string): boolean {
   if (!url) return false;
@@ -49,9 +52,12 @@ function isImageUrl(url: string): boolean {
 function parseContentToBlocks(input: string): Array<
   | { type: 'p'; text: string }
   | { type: 'img'; src: string; alt?: string; title?: string }
+  | { type: 'h'; level: 1 | 2 | 3 | 4 | 5 | 6; text: string }
 > {
   const lines = (input || '').replace(/\r\n?/g, '\n').split('\n');
-  const blocks: Array<{ type: 'p'; text: string } | { type: 'img'; src: string; alt?: string; title?: string }> = [];
+  const blocks: Array<
+    { type: 'p'; text: string } | { type: 'img'; src: string; alt?: string; title?: string } | { type: 'h'; level: 1 | 2 | 3 | 4 | 5 | 6; text: string }
+  > = [];
   let para: string[] = [];
   const flush = () => {
     if (para.length) {
@@ -72,6 +78,14 @@ function parseContentToBlocks(input: string): Array<
       const src = (md[2] || '').trim();
       const title = (md[3] || '').trim();
       if (src) blocks.push({ type: 'img', src, alt, title });
+      continue;
+    }
+    const mh = line.match(mdHeadingRegex);
+    if (mh) {
+      flush();
+      const level = Math.min(Math.max(mh[1].length, 1), 6) as 1 | 2 | 3 | 4 | 5 | 6;
+      const text = (mh[2] || '').trim();
+      blocks.push({ type: 'h', level, text });
       continue;
     }
     if (line.indexOf(' ') === -1 && isImageUrl(line)) {
@@ -99,6 +113,13 @@ function blocksToHTML(blocks: ReturnType<typeof parseContentToBlocks>): string {
           `</div>`
         );
       }
+      if (b.type === 'h') {
+        const lvl = b.level;
+        const text = esc(b.text).replace(/\n/g, ' ');
+        const cls = lvl <= 2 ? 'text-2xl font-semibold mt-4 mb-2' : lvl === 3 ? 'text-xl font-semibold mt-3 mb-1.5' : 'text-lg font-semibold mt-2 mb-1';
+        const lvlAttr = ` data-level="${lvl}"`;
+        return `<div data-block="h"${lvlAttr} class="rc-block rc-h ${cls}">${text || '<br>'}</div>`;
+      }
       // paragraphs: keep line breaks with <br>
       const text = esc(b.text).replace(/\n/g, '<br>');
       return `<div data-block="p" class="rc-block rc-p whitespace-pre-wrap">${text || '<br>'}</div>`;
@@ -111,13 +132,23 @@ function serializeHTMLToValue(root: HTMLElement): string {
   const out: string[] = [];
   const children = Array.from(root.children) as HTMLElement[];
   for (const el of children) {
-    if (el.getAttribute('data-block') === 'img') {
+    const kind = el.getAttribute('data-block');
+    if (kind === 'img') {
       const img = el.querySelector('img') as HTMLImageElement | null;
       if (img && img.getAttribute('src')) {
         const src = img.getAttribute('src') || '';
         const alt = img.getAttribute('alt') || '';
         out.push(`![${alt}](${src})`);
       }
+      continue;
+    }
+    if (kind === 'h') {
+      const lvlStr = el.getAttribute('data-level') || '2';
+      let lvl = parseInt(lvlStr, 10);
+      if (!(lvl >= 1 && lvl <= 6)) lvl = 2;
+      const hashes = '#'.repeat(lvl);
+      const text = (el as HTMLElement).innerText.replace(/\u00A0/g, ' ').trim();
+      out.push(`${hashes} ${text}`);
       continue;
     }
     // paragraph
@@ -129,10 +160,41 @@ function serializeHTMLToValue(root: HTMLElement): string {
 }
 
 export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditorProps>(
-  function ContentEditor({ id, value, onChange, placeholder, className, style }, ref) {
+  function ContentEditor({ id, value, onChange, placeholder, className, style, onFormatStateChange }, ref) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const lastExternalValue = useRef<string>('');
     const isComposingRef = useRef(false);
+    const lastHeadingLevelRef = useRef<0 | 1 | 2 | 3 | 4 | 5 | 6>(0);
+
+    const computeCurrentHeadingLevel = (): 0 | 1 | 2 | 3 | 4 | 5 | 6 => {
+      const el = containerRef.current;
+      if (!el) return 0;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return 0;
+      let node: Node | null = sel.anchorNode;
+      while (node && node !== el) {
+        if (node instanceof HTMLElement && node.classList.contains('rc-block')) {
+          const kind = node.getAttribute('data-block');
+          if (kind === 'h') {
+            const lvlStr = node.getAttribute('data-level') || '0';
+            const lvl = parseInt(lvlStr, 10);
+            if (lvl >= 1 && lvl <= 6) return lvl as 1 | 2 | 3 | 4 | 5 | 6;
+          }
+          break;
+        }
+        node = node.parentNode;
+      }
+      return 0;
+    };
+
+    const emitFormatState = () => {
+      if (!onFormatStateChange) return;
+      const lvl = computeCurrentHeadingLevel();
+      if (lastHeadingLevelRef.current !== lvl) {
+        lastHeadingLevelRef.current = lvl;
+        onFormatStateChange({ headingLevel: lvl });
+      }
+    };
 
     // Render blocks to HTML when external value changes
     useEffect(() => {
@@ -146,6 +208,7 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
       el.innerHTML = html;
       el.scrollTop = scrollTop;
       lastExternalValue.current = value;
+      emitFormatState();
     }, [value]);
 
     // Emit change on input
@@ -154,6 +217,7 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
       const next = serializeHTMLToValue(containerRef.current);
       lastExternalValue.current = next; // mark as our own emission
       onChange(next);
+      emitFormatState();
     };
 
     const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -270,6 +334,75 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
         sel2?.addRange(range);
         handleInput();
       },
+      toggleHeading(level) {
+        const el = containerRef.current;
+        if (!el) return;
+        const sel = window.getSelection();
+        let anchorBlock: HTMLElement | null = null;
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          let node: Node | null = range.startContainer;
+          while (node && node !== el) {
+            if (node instanceof HTMLElement && node.classList.contains('rc-block')) {
+              anchorBlock = node as HTMLElement;
+              break;
+            }
+            node = node.parentNode;
+          }
+        }
+        if (!anchorBlock) {
+          // if nothing selected, append a new heading block at end
+          const h = document.createElement('div');
+          h.setAttribute('data-block', 'h');
+          h.setAttribute('data-level', String(level));
+          const cls = level <= 2 ? 'text-2xl font-semibold mt-4 mb-2' : level === 3 ? 'text-xl font-semibold mt-3 mb-1.5' : 'text-lg font-semibold mt-2 mb-1';
+          h.className = `rc-block rc-h ${cls}`;
+          h.innerHTML = '<br>';
+          el.appendChild(h);
+          const p = document.createElement('div');
+          p.setAttribute('data-block', 'p');
+          p.className = 'rc-block rc-p whitespace-pre-wrap';
+          p.innerHTML = '<br>';
+          el.appendChild(p);
+          const range = document.createRange();
+          range.selectNodeContents(h);
+          range.collapse(true);
+          const sel2 = window.getSelection();
+          sel2?.removeAllRanges();
+          sel2?.addRange(range);
+          handleInput();
+          return;
+        }
+        const kind = anchorBlock.getAttribute('data-block');
+        if (kind === 'h') {
+          const currentLevel = parseInt(anchorBlock.getAttribute('data-level') || '2', 10);
+          if (currentLevel === level) {
+            // toggle off -> paragraph
+            anchorBlock.setAttribute('data-block', 'p');
+            anchorBlock.removeAttribute('data-level');
+            anchorBlock.className = 'rc-block rc-p whitespace-pre-wrap';
+          } else {
+            // change heading level
+            anchorBlock.setAttribute('data-level', String(level));
+            const cls = level <= 2 ? 'text-2xl font-semibold mt-4 mb-2' : level === 3 ? 'text-xl font-semibold mt-3 mb-1.5' : 'text-lg font-semibold mt-2 mb-1';
+            anchorBlock.className = `rc-block rc-h ${cls}`;
+          }
+        } else {
+          // paragraph -> heading
+          anchorBlock.setAttribute('data-block', 'h');
+          anchorBlock.setAttribute('data-level', String(level));
+          const cls = level <= 2 ? 'text-2xl font-semibold mt-4 mb-2' : level === 3 ? 'text-xl font-semibold mt-3 mb-1.5' : 'text-lg font-semibold mt-2 mb-1';
+          anchorBlock.className = `rc-block rc-h ${cls}`;
+        }
+        // Move caret to end of the block
+        const range = document.createRange();
+        range.selectNodeContents(anchorBlock);
+        range.collapse(false);
+        const sel2 = window.getSelection();
+        sel2?.removeAllRanges();
+        sel2?.addRange(range);
+        handleInput();
+      },
       focus() {
         containerRef.current?.focus();
       },
@@ -277,6 +410,25 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
 
     // Initial render
     const initialHTML = useMemo(() => blocksToHTML(parseContentToBlocks(value || '')), []);
+
+    // Listen to selection changes to update format state
+    useEffect(() => {
+      const onSelChange = () => {
+        const el = containerRef.current;
+        const sel = window.getSelection();
+        if (!el || !sel || sel.rangeCount === 0) return;
+        const node = sel.anchorNode as Node | null;
+        if (node && el.contains(node)) {
+          emitFormatState();
+        }
+      };
+      document.addEventListener('selectionchange', onSelChange);
+      // initial emit
+      emitFormatState();
+      return () => {
+        document.removeEventListener('selectionchange', onSelChange);
+      };
+    }, []);
 
     return (
       <div className="relative">
