@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Search, ChevronDown, ChevronUp, Star, ArrowRight } from 'lucide-react';
 import { SEO } from '../components/SEO';
 import { mockBrands, getFeaturedBrands, getTrendingBrands, getTopRatedBrands, mockArticles, brandCategories, getBrandsByCategory } from '../data/mockData';
 import { getAllBrands, AdminBrand } from '../db/brandsDb';
+import { useCachedData } from '../hooks/useCachedData';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -161,6 +163,9 @@ export function BrandsPage() {
   };
 
   function NewBrandCard({ brand }: { brand: Brand }) {
+    const [imageLoading, setImageLoading] = useState(true);
+    const [logoLoading, setLogoLoading] = useState(true);
+    
     // Calculate stars from either DB numericRating (1..5, halves allowed) or legacy mock rating
     let stars = 4;
     if (typeof brand.numericRating === 'number') {
@@ -181,18 +186,47 @@ export function BrandsPage() {
         <div className="space-y-3">
           {/* Brand Image with Logo Overlay */}
           <div className="aspect-[4/3] relative overflow-hidden rounded-md bg-gray-100">
-            <ImageWithFallback
-              src={brand.image || brand.heroImage || ''}
-              alt={brand.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
+            {(() => {
+              const imageSrc = brand.image || brand.heroImage;
+              if (!imageSrc) {
+                return (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                    <div className="h-6 w-6 border-2 border-gray-300 rounded-full animate-spin" style={{ borderTopColor: '#FF00A8' }} />
+                  </div>
+                );
+              }
+              return (
+                <>
+                  {imageLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                      <div className="h-6 w-6 border-2 border-gray-300 rounded-full animate-spin" style={{ borderTopColor: '#FF00A8' }} />
+                    </div>
+                  )}
+                  <ImageWithFallback
+                    src={imageSrc}
+                    alt={brand.name}
+                    className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => setImageLoading(false)}
+                  />
+                </>
+              );
+            })()}
             {/* Logo Circle Overlay */}
             <div className="absolute top-3 right-3 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center overflow-hidden">
+              {/* Loading indicator for logo */}
+              {logoLoading && typeof brand.logo === 'string' && /^(https?:\/\/|data:|\/\/)/.test(brand.logo) && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-3 w-3 border border-gray-300 rounded-full animate-spin" style={{ borderTopColor: '#FF00A8' }} />
+                </div>
+              )}
               {typeof brand.logo === 'string' && /^(https?:\/\/|data:|\/\/)/.test(brand.logo) ? (
                 <ImageWithFallback
                   src={brand.logo}
                   alt={`${brand.name} logo`}
-                  className="w-full h-full object-contain"
+                  className={`w-full h-full object-contain ${logoLoading ? 'opacity-0' : 'opacity-100'}`}
+                  onLoad={() => setLogoLoading(false)}
+                  onError={() => setLogoLoading(false)}
                 />
               ) : (
                 <span className="text-xs font-medium" style={{ fontFamily: 'var(--font-headlines)' }}>
@@ -238,28 +272,69 @@ export function BrandsPage() {
     }
   }, [filterType]);
 
-  // Load brands from admin DB and render them only (remove placeholders)
-  const [dbBrands, setDbBrands] = useState<Brand[]>([]);
+  // Migrate old cache keys to a stable key so refresh uses existing cache
   useEffect(() => {
-    (async () => {
-      try {
-        const all: AdminBrand[] = await getAllBrands();
-        const mapped: Brand[] = all.map((b) => ({
-          id: b.id,
-          name: b.name,
-          logo: b.logo,
-          image: b.image || b.logo,
-          description: b.description,
-          website: b.website,
-          priceRange: b.priceRange,
-          numericRating: typeof b.rating === 'number' ? b.rating : undefined,
-        }));
-        setDbBrands(mapped);
-      } catch {
-        setDbBrands([]);
+    const stableKey = 'brands:list';
+    try {
+      const existing = sessionStorage.getItem(stableKey) || localStorage.getItem(stableKey);
+      if (!existing) {
+        const legacyKeys = ['brands:list:v3', 'brands:list:v2', 'brands:list:v1'];
+        for (const k of legacyKeys) {
+          const raw = sessionStorage.getItem(k) || localStorage.getItem(k);
+          if (raw) {
+            if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(stableKey, raw);
+            if (typeof localStorage !== 'undefined') localStorage.setItem(stableKey, raw);
+            break;
+          }
+        }
       }
-    })();
+    } catch {}
   }, []);
+
+  // Load brands with localStorage cache and background refresh
+  const fetchBrands = async (): Promise<Brand[]> => {
+    const all: AdminBrand[] = await getAllBrands();
+    const mapped = all.map((b) => ({
+      id: b.id,
+      name: b.name,
+      logo: b.logo,
+      image: b.image || b.logo,
+      description: b.description,
+      website: b.website,
+      priceRange: b.priceRange,
+      numericRating: typeof b.rating === 'number' ? b.rating : undefined,
+    }));
+    return mapped;
+  };
+
+  const storageKey = 'brands:list';
+  const { data: dbBrands, isLoading, hasCache, isRefreshing } = useCachedData<Brand[]>(
+    storageKey,
+    fetchBrands,
+    {
+      maxAgeMs: 10 * 60 * 1000, // 10 minutes
+      revalidateOnMount: true,
+      // Compress data for storage - remove large images, keep only essential data
+      serialize: (brands) => brands.map(b => ({
+        id: b.id,
+        name: b.name,
+        logo: typeof b.logo === 'string' ? b.logo : '', // Keep only string logos
+        image: '', // Remove images to save space
+        description: b.description?.substring(0, 100) || '', // Truncate description
+        website: b.website || '',
+        priceRange: b.priceRange || [],
+        numericRating: b.numericRating || 0,
+      })),
+      shouldAccept: (prev, next) => {
+        const prevLen = Array.isArray(prev) ? prev.length : 0;
+        const nextLen = Array.isArray(next) ? next.length : 0;
+        // if we had data before and next is empty, keep previous
+        if (prevLen > 0 && nextLen === 0) return false;
+        return true;
+      }
+    }
+  );
+
 
   // Render DB-backed brands only (placeholders removed)
   return (
@@ -276,16 +351,24 @@ export function BrandsPage() {
             </h1>
           </div>
 
-          {dbBrands.length > 0 ? (
+          {dbBrands && dbBrands.length > 0 ? (
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 lg:gap-6">
               {dbBrands.map((brand) => (
-                <NewBrandCard key={brand.id} brand={brand} />
+                <div key={brand.id}>
+                  <NewBrandCard brand={brand} />
+                </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <p className="text-foreground/60">No brands yet. Add some in the Admin panel.</p>
-            </div>
+            isLoading && !hasCache ? (
+              <div className="py-12 flex items-center justify-center">
+                <LoadingIndicator message="Loading brands..." />
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-foreground/60">No brands yet. Add some in the Admin panel.</p>
+              </div>
+            )
           )}
         </section>
       </div>

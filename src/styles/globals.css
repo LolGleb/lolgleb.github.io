@@ -136,6 +136,11 @@
   }
 }
 
+/* Spinners */
+@keyframes ttos-spin { to { transform: rotate(360deg); } }
+.ttos-spin { animation: ttos-spin 0.9s linear infinite; }
+.ttos-fuchsia { border-top-color: var(--color-fuchsia); }
+
 /**
  * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
  */
