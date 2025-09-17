@@ -1,6 +1,40 @@
 import { useEffect, useState } from 'react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { getAllArticles, AdminArticle } from '../db/articlesDb';
+import { useCachedData } from '../hooks/useCachedData';
+
+function LoadingImage({
+  src,
+  alt,
+  className,
+  spinnerSize = 'h-5 w-5',
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  spinnerSize?: 'h-5 w-5' | 'h-6 w-6';
+}) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/5">
+          <div
+            className={`${spinnerSize} border-2 border-gray-300 rounded-full animate-spin`}
+            style={{ borderTopColor: '#FF00A8' }}
+          />
+        </div>
+      )}
+      <ImageWithFallback
+        src={src}
+        alt={alt}
+        className={`${className ?? ''} ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+      />
+    </>
+  );
+}
 
 interface Article {
   id: number;
@@ -14,37 +48,66 @@ interface Article {
 export function Hero() {
   const [activeTab, setActiveTab] = useState<'hype' | 'latest'>('hype');
   const [displayedArticles, setDisplayedArticles] = useState(8);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [dbArticles, setDbArticles] = useState<Article[]>([]);
 
+  const { data: articles, isLoading: isFetching, hasCache } = useCachedData<AdminArticle[]>(
+    'articles:list',
+    async () => {
+      const all = await getAllArticles();
+      return all.map((a) => ({
+        id: a.id,
+        title: a.title,
+        excerpt: a.excerpt?.slice(0, 120),
+        category: a.category,
+        image: a.image,
+        publishedAt: a.publishedAt,
+      } as AdminArticle));
+    },
+    {
+      maxAgeMs: 10 * 60 * 1000,
+      revalidateOnMount: true,
+      shouldAccept: (prev, next) => {
+        const prevLen = Array.isArray(prev) ? prev.length : 0;
+        const nextLen = Array.isArray(next) ? next.length : 0;
+        return !(prevLen > 0 && nextLen === 0);
+      },
+    }
+  );
+
   useEffect(() => {
-    (async () => {
-      try {
-        const all: AdminArticle[] = await getAllArticles();
-        const sorted = [...all].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-        const mapped: Article[] = sorted.map((a, idx) => ({
-          id: idx + 1, // local numeric ID for UI only
-          title: a.title,
-          category: a.category,
-          image: a.image,
-          publishedAt: (() => {
-            try {
-              const d = new Date(a.publishedAt);
-              return isNaN(d.getTime()) ? a.publishedAt : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            } catch {
-              return a.publishedAt;
-            }
-          })(),
-          excerpt: a.excerpt,
-        }));
-        setDbArticles(mapped);
-      } catch {
-        setDbArticles([]);
-      }
-    })();
-  }, []);
+    const sorted = Array.isArray(articles) ? [...articles].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)) : [];
+    const mapped: Article[] = sorted.map((a, idx) => ({
+      id: idx + 1,
+      title: a.title,
+      category: a.category,
+      image: a.image,
+      publishedAt: (() => {
+        try {
+          const d = new Date(a.publishedAt);
+          return isNaN(d.getTime()) ? a.publishedAt : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch {
+          return a.publishedAt;
+        }
+      })(),
+      excerpt: a.excerpt,
+    }));
+    setDbArticles(mapped);
+  }, [articles]);
 
   // If there are no admin articles yet, render a simple empty state
+  if (isFetching && !hasCache) {
+    return (
+      <section className="py-8 lg:py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-16 flex items-center justify-center">
+            <div className="h-6 w-6 border-2 border-gray-300 rounded-full animate-spin" style={{ borderTopColor: '#FF00A8' }} />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (dbArticles.length === 0) {
     return (
       <section className="py-8 lg:py-12">
@@ -64,10 +127,10 @@ export function Hero() {
 
   // Load more from existing DB-backed list
   const loadMoreArticles = async () => {
-    setIsLoading(true);
+    setIsLoadingMore(true);
     await new Promise((r) => setTimeout(r, 400));
     setDisplayedArticles((prev) => Math.min(prev + 8, bottomArticles.length));
-    setIsLoading(false);
+    setIsLoadingMore(false);
   };
 
   // Получаем статьи для отображения
@@ -83,10 +146,11 @@ export function Hero() {
           <div className="mb-6">
             <article className="group cursor-pointer h-full">
               <div className="relative aspect-[3/2] overflow-hidden rounded-md mb-4">
-                <ImageWithFallback
+                <LoadingImage
                   src={featuredArticle.image}
                   alt={featuredArticle.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  spinnerSize="h-6 w-6"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
               </div>
@@ -117,10 +181,11 @@ export function Hero() {
             {sideArticles.map((article) => (
               <article key={article.id} className="group cursor-pointer">
                 <div className="relative aspect-square overflow-hidden rounded-md mb-3">
-                  <ImageWithFallback
+                  <LoadingImage
                     src={article.image}
                     alt={article.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    spinnerSize="h-5 w-5"
                   />
                 </div>
                 
@@ -149,10 +214,11 @@ export function Hero() {
           <div className="lg:col-span-2">
             <article className="group cursor-pointer h-full">
               <div className="relative aspect-[3/2] overflow-hidden rounded-md mb-4">
-                <ImageWithFallback
+                <LoadingImage
                   src={featuredArticle.image}
                   alt={featuredArticle.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  spinnerSize="h-6 w-6"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
               </div>
@@ -183,10 +249,11 @@ export function Hero() {
             {sideArticles.map((article) => (
               <article key={article.id} className="group cursor-pointer">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-md mb-3">
-                  <ImageWithFallback
+                  <LoadingImage
                     src={article.image}
                     alt={article.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    spinnerSize="h-5 w-5"
                   />
                 </div>
                 
@@ -243,10 +310,11 @@ export function Hero() {
           {articlesToDisplay.map((article) => (
             <article key={article.id} className="group cursor-pointer">
               <div className="relative aspect-square overflow-hidden rounded-md mb-3">
-                <ImageWithFallback
+                <LoadingImage
                   src={article.image}
                   alt={article.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  spinnerSize="h-5 w-5"
                 />
               </div>
               
@@ -272,7 +340,7 @@ export function Hero() {
         <div className="flex justify-center">
           <button
             onClick={loadMoreArticles}
-            disabled={isLoading}
+            disabled={isLoadingMore}
             className="flex items-center gap-2 px-6 py-3 text-foreground/60 hover:text-foreground transition-colors disabled:opacity-50"
             style={{ fontFamily: 'var(--font-body)' }}
           >
@@ -280,9 +348,9 @@ export function Hero() {
               Ticket to
             </span>
             <span>
-              {isLoading ? 'loading...' : 'loading more'}
+              {isLoadingMore ? 'loading...' : 'loading more'}
             </span>
-            {!isLoading && <span>→</span>}
+            {!isLoadingMore && <span>→</span>}
           </button>
         </div>
       </div>

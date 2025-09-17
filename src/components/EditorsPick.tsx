@@ -2,26 +2,54 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { getAllArticles, AdminArticle } from '../db/articlesDb';
+import { useCachedData } from '../hooks/useCachedData';
 
 export function EditorsPick() {
-  const [latest, setLatest] = useState<AdminArticle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: articles, isLoading, hasCache } = useCachedData<AdminArticle[]>(
+    'articles:list',
+    async () => {
+      const all = await getAllArticles();
+      // minimize payload for storage
+      return all.map((a) => ({
+        id: a.id,
+        title: a.title,
+        excerpt: a.excerpt?.slice(0, 160),
+        category: a.category,
+        image: a.image,
+        publishedAt: a.publishedAt,
+      } as AdminArticle));
+    },
+    {
+      maxAgeMs: 10 * 60 * 1000,
+      revalidateOnMount: true,
+      shouldAccept: (prev, next) => {
+        const prevLen = Array.isArray(prev) ? prev.length : 0;
+        const nextLen = Array.isArray(next) ? next.length : 0;
+        return !(prevLen > 0 && nextLen === 0);
+      },
+    }
+  );
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const all = await getAllArticles();
-        const sorted = [...all].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-        setLatest(sorted[0] || null);
-      } catch (e) {
-        setLatest(null);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  // Must be declared before any conditional returns to keep hooks order stable
+  const [imageLoading, setImageLoading] = useState(true);
 
-  if (loading) return null;
+  const latest = (() => {
+    const list = Array.isArray(articles) ? [...articles] : [];
+    list.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+    return list[0] || null;
+  })();
+
+  if (isLoading && !hasCache) {
+    return (
+      <section className="py-12 lg:py-16 bg-primary text-primary-foreground">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-16 flex items-center justify-center">
+            <div className="h-6 w-6 border-2 border-white/40 rounded-full animate-spin" style={{ borderTopColor: '#FF00A8' }} />
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (!latest) {
     return (
@@ -51,10 +79,17 @@ export function EditorsPick() {
           <div className="relative">
             <div className="aspect-[4/5] overflow-hidden rounded-md">
               <Link to={`/article/${latest.id}`}>
+                {imageLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                    <div className="h-6 w-6 border-2 border-white/40 rounded-full animate-spin" style={{ borderTopColor: '#FF00A8' }} />
+                  </div>
+                )}
                 <ImageWithFallback
                   src={latest.image}
                   alt={latest.title}
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                  onLoad={() => setImageLoading(false)}
+                  onError={() => setImageLoading(false)}
                 />
               </Link>
             </div>
