@@ -12,6 +12,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '../components/ui/breadcrumb';
 import { AdminBrand, getBrandByIdAdmin } from '../db/brandsDb';
+import { getBrandAverages } from '../db/brandRatingsDb';
 
 export function BrandPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,61 @@ export function BrandPage() {
   if (!id) {
     return <div>Brand not found</div>;
   }
+
+  // Per-category average ratings aggregated from Supabase
+  const [avgRatings, setAvgRatings] = useState<{
+    culturalImpact: number;
+    collabPower: number;
+    creativity: number;
+    popularity: number;
+    loyalty: number;
+    drops: number;
+  } | undefined>(undefined);
+  const [avgLoading, setAvgLoading] = useState<boolean>(true);
+  const [avgError, setAvgError] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAvgLoading(true);
+    setAvgError(false);
+    (async () => {
+      if (!id) return;
+      try {
+        const avg = await getBrandAverages(id);
+        if (!cancelled) {
+          setAvgRatings(avg);
+          setAvgError(false);
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[BrandPage] failed to fetch brand averages', e);
+        if (!cancelled) {
+          setAvgRatings(undefined);
+          setAvgError(true);
+        }
+      } finally {
+        if (!cancelled) setAvgLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const refreshAverages = async () => {
+    if (!id) return;
+    setAvgLoading(true);
+    setAvgError(false);
+    try {
+      const avg = await getBrandAverages(id);
+      setAvgRatings(avg);
+      setAvgError(false);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[BrandPage] refreshAverages error', e);
+      setAvgError(true);
+    } finally {
+      setAvgLoading(false);
+    }
+  };
 
   // Try legacy/mock brand first
   const brand = getBrandById(id);
@@ -57,6 +113,8 @@ export function BrandPage() {
     const price = Array.isArray(b.priceRange) && b.priceRange.length ? b.priceRange[0] : undefined;
     const madeIn = Array.isArray(b.madeIn) ? b.madeIn : undefined;
     const stars = typeof b.rating === 'number' ? Math.min(Math.max(Math.round(b.rating), 1), 5) : undefined;
+    const userRating = getUserBrandRating(id);
+    const baseAvg = typeof b.rating === 'number' ? Math.min(Math.max(Math.round(b.rating), 1), 5) : 3;
 
     return (
       <>
@@ -342,6 +400,93 @@ export function BrandPage() {
                       {tag}
                     </Badge>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Rating Section (Admin brand) */}
+            <div className="mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl" style={{ fontFamily: 'var(--font-headlines)' }}>
+                  Rate {b.name}
+                </h2>
+                <div className="text-sm text-foreground/60">
+                  Click stars to rate • Average rating on the right
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-2">
+                    <span className="font-medium">Cultural Impact</span>
+                    <InteractiveStarRating
+                      brandId={id}
+                      category="culturalImpact"
+                      currentRating={avgRatings?.culturalImpact ?? (userRating?.ratings.culturalImpact || 0)}
+                      userRating={userRating?.ratings.culturalImpact || 0}
+                      onRate={refreshAverages}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-2">
+                    <span className="font-medium">Collab Power</span>
+                    <InteractiveStarRating
+                      brandId={id}
+                      category="collabPower"
+                      currentRating={avgRatings?.collabPower ?? (userRating?.ratings.collabPower || 0)}
+                      userRating={userRating?.ratings.collabPower || 0}
+                      onRate={refreshAverages}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-2">
+                    <span className="font-medium">Creativity</span>
+                    <InteractiveStarRating
+                      brandId={id}
+                      category="creativity"
+                      currentRating={avgRatings?.creativity ?? (userRating?.ratings.creativity || 0)}
+                      userRating={userRating?.ratings.creativity || 0}
+                      onRate={refreshAverages}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-2">
+                    <span className="font-medium">Popularity</span>
+                    <InteractiveStarRating
+                      brandId={id}
+                      category="popularity"
+                      currentRating={avgRatings?.popularity ?? (userRating?.ratings.popularity || 0)}
+                      userRating={userRating?.ratings.popularity || 0}
+                      onRate={refreshAverages}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-2">
+                    <span className="font-medium">Loyalty & Rewards</span>
+                    <InteractiveStarRating
+                      brandId={id}
+                      category="loyalty"
+                      currentRating={avgRatings?.loyalty ?? (userRating?.ratings.loyalty || 0)}
+                      userRating={userRating?.ratings.loyalty || 0}
+                      onRate={refreshAverages}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-2">
+                    <span className="font-medium">Drops & Sales</span>
+                    <InteractiveStarRating
+                      brandId={id}
+                      category="drops"
+                      currentRating={avgRatings?.drops ?? (userRating?.ratings.drops || brand.rating.drops)}
+                      userRating={userRating?.ratings.drops || 0}
+                      onRate={refreshAverages}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -674,8 +819,9 @@ The brand continues to innovate with smart textile integration, exploring possib
                     <InteractiveStarRating
                       brandId={id}
                       category="culturalImpact"
-                      currentRating={brand.rating.culturalImpact}
+                      currentRating={avgRatings?.culturalImpact ?? (userRating?.ratings.culturalImpact || brand.rating.culturalImpact)}
                       userRating={userRating?.ratings.culturalImpact || 0}
+                      onRate={refreshAverages}
                     />
                   </div>
                 </div>
@@ -685,8 +831,9 @@ The brand continues to innovate with smart textile integration, exploring possib
                     <InteractiveStarRating
                       brandId={id}
                       category="collabPower"
-                      currentRating={brand.rating.collabPower}
+                      currentRating={avgRatings?.collabPower ?? (userRating?.ratings.collabPower || brand.rating.collabPower)}
                       userRating={userRating?.ratings.collabPower || 0}
+                      onRate={refreshAverages}
                     />
                   </div>
                 </div>
@@ -696,8 +843,9 @@ The brand continues to innovate with smart textile integration, exploring possib
                     <InteractiveStarRating
                       brandId={id}
                       category="creativity"
-                      currentRating={brand.rating.creativity}
+                      currentRating={avgRatings?.creativity ?? (userRating?.ratings.creativity || brand.rating.creativity)}
                       userRating={userRating?.ratings.creativity || 0}
+                      onRate={refreshAverages}
                     />
                   </div>
                 </div>
@@ -707,8 +855,9 @@ The brand continues to innovate with smart textile integration, exploring possib
                     <InteractiveStarRating
                       brandId={id}
                       category="popularity"
-                      currentRating={brand.rating.popularity}
+                      currentRating={avgRatings?.popularity ?? (userRating?.ratings.popularity || brand.rating.popularity)}
                       userRating={userRating?.ratings.popularity || 0}
+                      onRate={refreshAverages}
                     />
                   </div>
                 </div>
@@ -718,8 +867,9 @@ The brand continues to innovate with smart textile integration, exploring possib
                     <InteractiveStarRating
                       brandId={id}
                       category="loyalty"
-                      currentRating={brand.rating.loyalty}
+                      currentRating={avgRatings?.loyalty ?? (userRating?.ratings.loyalty || brand.rating.loyalty)}
                       userRating={userRating?.ratings.loyalty || 0}
+                      onRate={refreshAverages}
                     />
                   </div>
                 </div>

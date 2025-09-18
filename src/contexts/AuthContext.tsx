@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { registerUser, loginUser, updateUserAvatar as dbUpdateUserAvatar, updateUserBio as dbUpdateUserBio, updateUserName as dbUpdateUserName, getUserById } from '../db/authDb';
+import { upsertUserBrandRating } from '../db/brandRatingsDb';
 
 interface User {
   id: string;
@@ -143,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const rateBrand = (brandId: string, category: string, rating: number) => {
     if (!currentUser) return;
 
+    // Update local (client) ratings state
     setUserRatings(prev => {
       const existingRating = prev.find(r => r.brandId === brandId);
       
@@ -168,6 +170,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return [...prev, newRating];
       }
     });
+
+    // Persist to Supabase (fire-and-forget)
+    try {
+      // Narrow category type
+      const cat = category as 'culturalImpact'|'collabPower'|'creativity'|'popularity'|'loyalty'|'drops';
+      void upsertUserBrandRating(currentUser.id, brandId, cat, rating);
+    } catch (e) {
+      try { console.warn('[DEBUG_LOG][Auth] failed to upsert user brand rating', e); } catch {}
+    }
   };
 
   const getUserBrandRating = (brandId: string): BrandRating | null => {

@@ -54,7 +54,7 @@ export function InteractiveStarRating({
   };
 
   const displayRating = hoveredRating || userRating || 0;
-  const showCurrentRating = !hoveredRating && !userRating;
+  const showAverage = hoveredRating === 0;
 
   return (
     <div className="flex items-center gap-1">
@@ -89,21 +89,31 @@ export function InteractiveStarRating({
         })}
       </div>
 
-      {/* Current Average Rating (smaller, grayed out) */}
-      {showCurrentRating && (
+      {/* Current Average Rating with partial fill reflecting exact average */}
+      {showAverage && (
         <>
           <span className="mx-2 text-xs text-foreground/40">avg:</span>
-          <div className="flex gap-0.5">
-            {Array.from({ length: 5 }, (_, i) => (
-              <Star
-                key={`avg-${i}`}
-                className={`w-3 h-3 ${
-                  i + 1 <= currentRating 
-                    ? 'fill-gray-400 text-gray-400' 
-                    : 'text-gray-300'
-                }`}
-              />
-            ))}
+          <div className="flex items-center gap-0.5">
+            {(() => {
+              const safeAvg = Number.isFinite(currentRating) ? Math.max(0, Math.min(5, Number(currentRating))) : 0;
+              return Array.from({ length: 5 }, (_, i) => {
+                const fillRatio = Math.max(0, Math.min(1, safeAvg - i)); // 0..1 for this star
+                const width = Number.isFinite(fillRatio) ? `${fillRatio * 100}%` : '0%';
+                return (
+                  <div key={`avg-${i}`} className="relative w-3 h-3">
+                    {/* Base star (gray outline) */}
+                    <Star className="w-3 h-3 text-gray-300" />
+                    {/* Colored overlay clipped by width to show partial fill */}
+                    <div className="absolute left-0 top-0 h-full overflow-hidden pointer-events-none" style={{ width }}>
+                      {/* Use a filled star so the fill shows correctly */}
+                      <svg viewBox="0 0 24 24" className="w-3 h-3 text-[#FF00A8]" aria-hidden="true">
+                        <path d="M12 2.25l2.954 5.976 6.596.959-4.775 4.654 1.127 6.574L12 17.771l-5.902 3.142 1.127-6.574L2.45 9.185l6.596-.959L12 2.25z" fill="currentColor" stroke="none" />
+                      </svg>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </>
       )}
