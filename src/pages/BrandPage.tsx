@@ -1,4 +1,4 @@
-import { useParams, Link, Navigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ExternalLink, Star } from 'lucide-react';
 import { SEO } from '../components/SEO';
@@ -31,8 +31,8 @@ export function BrandPage() {
     loyalty: number;
     drops: number;
   } | undefined>(undefined);
-  const [avgLoading, setAvgLoading] = useState<boolean>(true);
-  const [avgError, setAvgError] = useState<boolean>(false);
+  const [, setAvgLoading] = useState<boolean>(true);
+  const [, setAvgError] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -482,7 +482,7 @@ export function BrandPage() {
                     <InteractiveStarRating
                       brandId={id}
                       category="drops"
-                      currentRating={avgRatings?.drops ?? (userRating?.ratings.drops || brand.rating.drops)}
+                      currentRating={avgRatings?.drops ?? (userRating?.ratings.drops || 0)}
                       userRating={userRating?.ratings.drops || 0}
                       onRate={refreshAverages}
                     />
@@ -490,6 +490,21 @@ export function BrandPage() {
                 </div>
               </div>
             </div>
+
+            {/* Website Link */}
+            {b.website && (
+              <div className="mb-12">
+                <a
+                  href={b.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-[#FF00A8] hover:opacity-80 transition-opacity"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>{b.website}</span>
+                </a>
+              </div>
+            )}
           </div>
         </main>
       </>
