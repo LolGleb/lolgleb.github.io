@@ -9,6 +9,7 @@ export interface AdminBrand {
   image?: string; // URL to brand cover/hero image
   description?: string; // "About" text
   website?: string;
+  contacts?: Array<{ label: string; url: string }>; // Contact links
   tags?: string[]; // Categories
   madeIn?: string[]; // Country of origin (store single selection as array with one item)
   priceRange?: string[]; // e.g., ["$"], ["$$"], etc. (store single selection as array with one item)
@@ -37,6 +38,7 @@ function omitNewOptionalColumns(brand: Partial<AdminBrand>): Partial<AdminBrand>
   delete (clone as any).rating;
   delete (clone as any).founded;
   delete (clone as any).headquarters;
+  delete (clone as any).contacts;
   return clone;
 }
 

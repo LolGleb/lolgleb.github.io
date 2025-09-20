@@ -538,6 +538,7 @@ export function BrandPage() {
               </div>
             )}
 
+
             {/* Articles featuring this brand (Admin) */}
             {adminBrandArticles.length > 0 && (
               <div className="mb-12">
@@ -552,6 +553,28 @@ export function BrandPage() {
                   >
                     Ticket <em style={{ color: '#FF00A8' }}>to</em> all Articles
                   </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Contact Links */}
+            {Array.isArray(b.contacts) && b.contacts.length > 0 && (
+              <div className="mb-12">
+                <h2 className="text-xl mb-6" style={{ fontFamily: 'var(--font-headlines)' }}>
+                  Contact {b.name}
+                </h2>
+                <div className="space-y-2">
+                  {b.contacts.map((contact, index) => (
+                    <a
+                      key={index}
+                      href={contact.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-[#FF00A8] hover:opacity-80 transition-opacity"
+                    >
+                      {contact.label}
+                    </a>
+                  ))}
                 </div>
               </div>
             )}

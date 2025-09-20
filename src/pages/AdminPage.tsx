@@ -34,6 +34,9 @@ export function AdminPage() {
   const [brandImage, setBrandImage] = useState('');
   const [brandDescription, setBrandDescription] = useState(''); // About
   const [brandWebsite, setBrandWebsite] = useState('');
+  const [brandContacts, setBrandContacts] = useState<Array<{ label: string; url: string }>>([]);
+  const [brandContactLabel, setBrandContactLabel] = useState('');
+  const [brandContactUrl, setBrandContactUrl] = useState('');
   const [brandRating, setBrandRating] = useState<string>('');
   const [brandFounded, setBrandFounded] = useState<string>('');
   const [brandHeadquarters, setBrandHeadquarters] = useState<string>('');
@@ -284,6 +287,9 @@ export function AdminPage() {
     setBrandImage(b.image || '');
     setBrandDescription(b.description || '');
     setBrandWebsite(b.website || '');
+    setBrandContacts(Array.isArray(b.contacts) ? b.contacts : []);
+    setBrandContactLabel('');
+    setBrandContactUrl('');
     setBrandRating(b.rating != null ? String(b.rating) : '');
     setBrandFounded(b.founded != null ? String(b.founded) : '');
     setBrandHeadquarters(b.headquarters || '');
@@ -300,6 +306,9 @@ export function AdminPage() {
     setBrandImage('');
     setBrandDescription('');
     setBrandWebsite('');
+    setBrandContacts([]);
+    setBrandContactLabel('');
+    setBrandContactUrl('');
     setBrandRating('');
     setBrandFounded('');
     setBrandHeadquarters('');
@@ -331,6 +340,7 @@ export function AdminPage() {
         image: brandImage.trim() || undefined,
         description: brandDescription.trim() || undefined,
         website: brandWebsite.trim() || undefined,
+        contacts: brandContacts.length ? brandContacts : undefined,
         rating: brandRating ? Number(brandRating) : undefined,
         founded: brandFounded ? Number(brandFounded) : undefined,
         headquarters: brandHeadquarters.trim() || undefined,
@@ -351,6 +361,9 @@ export function AdminPage() {
       setBrandImage('');
       setBrandDescription('');
       setBrandWebsite('');
+      setBrandContacts([]);
+      setBrandContactLabel('');
+      setBrandContactUrl('');
       setBrandRating('');
       setBrandFounded('');
       setBrandHeadquarters('');
@@ -716,6 +729,61 @@ export function AdminPage() {
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Website (optional)</label>
               <Input value={brandWebsite} onChange={(e) => setBrandWebsite(e.target.value)} placeholder="https://brand.com" />
+            </div>
+
+            {/* Contacts */}
+            <div className="md:col-span-2">
+              <label className="block text-sm mb-2">Contacts (optional)</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <div>
+                  <label className="block text-xs mb-1 text-foreground/60">Label</label>
+                  <Input value={brandContactLabel} onChange={(e) => setBrandContactLabel(e.target.value)} placeholder="e.g. Customer Support" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs mb-1 text-foreground/60">URL</label>
+                  <Input value={brandContactUrl} onChange={(e) => setBrandContactUrl(e.target.value)} placeholder="mailto:support@brand.com or https://..." />
+                </div>
+              </div>
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const label = brandContactLabel.trim();
+                    const url = brandContactUrl.trim();
+                    if (!label || !url) {
+                      toast.error('Please fill both label and URL');
+                      return;
+                    }
+                    setBrandContacts((prev) => [...prev, { label, url }]);
+                    setBrandContactLabel('');
+                    setBrandContactUrl('');
+                  }}
+                >
+                  Add contact
+                </Button>
+              </div>
+              {brandContacts.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {brandContacts.map((c, i) => (
+                    <li key={`${c.label}-${i}`} className="flex items-center justify-between text-sm border border-border rounded px-3 py-2 bg-background">
+                      <div className="overflow-hidden">
+                        <div className="font-medium truncate">{c.label}</div>
+                        <div className="text-foreground/60 truncate">{c.url}</div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setBrandContacts((prev) => prev.filter((_, idx) => idx !== i))}
+                      >
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {/* New Brand Meta Fields */}
