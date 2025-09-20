@@ -13,6 +13,8 @@ import { Button } from '../components/ui/button';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '../components/ui/breadcrumb';
 import { AdminBrand, getBrandByIdAdmin } from '../db/brandsDb';
 import { getBrandAverages } from '../db/brandRatingsDb';
+import { getArticlesByBrandId, AdminArticle } from '../db/articlesDb';
+import { Article } from '../types';
 
 export function BrandPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +35,35 @@ export function BrandPage() {
   } | undefined>(undefined);
   const [, setAvgLoading] = useState<boolean>(true);
   const [, setAvgError] = useState<boolean>(false);
+
+  // Admin-linked articles for this brand (DB)
+  const [adminBrandArticles, setAdminBrandArticles] = useState<Article[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!id) return;
+        const items: AdminArticle[] = await getArticlesByBrandId(id);
+        if (cancelled) return;
+        const toArticle = (a: AdminArticle): Article => ({
+          id: a.id,
+          title: a.title,
+          excerpt: a.excerpt || '',
+          category: a.category,
+          image: a.image,
+          date: new Date(a.publishedAt).toISOString(),
+          readTime: a.readTime,
+          featured: a.featured,
+          content: a.content,
+        });
+        setAdminBrandArticles(items.map(toArticle));
+      } catch (e) {
+        try { console.warn('[BrandPage] failed to load admin articles for brand', id, e); } catch {}
+        if (!cancelled) setAdminBrandArticles([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +146,7 @@ export function BrandPage() {
     const stars = typeof b.rating === 'number' ? Math.min(Math.max(Math.round(b.rating), 1), 5) : undefined;
     const userRating = getUserBrandRating(id);
     const baseAvg = typeof b.rating === 'number' ? Math.min(Math.max(Math.round(b.rating), 1), 5) : 3;
+
 
     return (
       <>
@@ -503,6 +535,24 @@ export function BrandPage() {
                   <ExternalLink className="w-4 h-4" />
                   <span>{b.website}</span>
                 </a>
+              </div>
+            )}
+
+            {/* Articles featuring this brand (Admin) */}
+            {adminBrandArticles.length > 0 && (
+              <div className="mb-12">
+                <h2 className="text-xl mb-6" style={{ fontFamily: 'var(--font-headlines)' }}>
+                  Articles featuring {b.name}
+                </h2>
+                <ArticleGrid articles={adminBrandArticles} />
+                <div className="text-center mt-8">
+                  <Link
+                    to="/news"
+                    className="text-[#FF00A8] hover:opacity-80 transition-opacity"
+                  >
+                    Ticket <em style={{ color: '#FF00A8' }}>to</em> all Articles
+                  </Link>
+                </div>
               </div>
             )}
           </div>

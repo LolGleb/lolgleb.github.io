@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { addArticle, AdminArticle, AdminArticleCategory, deleteArticle, generateId, getAllArticles, updateArticle } from '../db/articlesDb';
+import { addArticle, AdminArticle, AdminArticleCategory, deleteArticle, generateId, getAllArticles, updateArticle, getBrandIdsForArticle } from '../db/articlesDb';
 import { addBrand, AdminBrand, deleteBrand as deleteBrandDb, generateBrandId, getAllBrands, updateBrand } from '../db/brandsDb';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -21,6 +21,7 @@ export function AdminPage() {
   const [readTime, setReadTime] = useState('');
   const [content, setContent] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [articleBrandIds, setArticleBrandIds] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<AdminArticle[]>([]);
@@ -206,6 +207,7 @@ export function AdminPage() {
         featured,
         readTime: readTime.trim() || undefined,
         content: content.trim() || undefined,
+        brandIds: articleBrandIds.length ? articleBrandIds : undefined,
       };
       if (editingId) {
         await updateArticle(article);
@@ -223,6 +225,7 @@ export function AdminPage() {
       setReadTime('');
       setContent('');
       setDate(new Date().toISOString().slice(0, 10));
+      setArticleBrandIds([]);
       await refreshList();
     } catch (err) {
       console.error(err);
@@ -242,6 +245,12 @@ export function AdminPage() {
     setFeatured(Boolean(a.featured));
     setReadTime(a.readTime || '');
     setContent(a.content || '');
+    // Pre-fill from legacy column if present
+    setArticleBrandIds(Array.isArray(a.brandIds) ? a.brandIds : []);
+    // And refresh from join-table (preferred)
+    getBrandIdsForArticle(a.id)
+      .then((ids) => Array.isArray(ids) && setArticleBrandIds(ids))
+      .catch(() => {});
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -255,6 +264,7 @@ export function AdminPage() {
     setReadTime('');
     setContent('');
     setDate(new Date().toISOString().slice(0, 10));
+    setArticleBrandIds([]);
   }
 
   async function onDelete(id: string) {
@@ -366,13 +376,7 @@ export function AdminPage() {
       setAdminError('Неверный логин или пароль');
     }
   }
-
-  function handleAdminLogout() {
-    try { localStorage.removeItem(ADMIN_LS_KEY); } catch {}
-    setAdminAuthed(false);
-  }
-
-  if (!adminAuthed) {
+    if (!adminAuthed) {
     return (
       <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <h1 className="text-3xl mb-6" style={{ fontFamily: 'var(--font-headlines)' }}>Admin Login</h1>
@@ -490,6 +494,42 @@ export function AdminPage() {
               <Checkbox id="featured" checked={featured} onCheckedChange={(v) => setFeatured(Boolean(v))} />
               <label htmlFor="featured" className="text-sm">Featured</label>
             </div>
+
+            {/* Link to Brands */}
+            <div className="md:col-span-2">
+              <label className="block text-sm mb-2">Brands featured in this article</label>
+              {brandList.length === 0 ? (
+                <div className="text-xs text-foreground/60">No brands yet. Add brands in the Brands tab to link them here.</div>
+              ) : (
+                <div className="max-h-48 overflow-auto border border-border rounded p-3 grid grid-cols-1 sm:grid-cols-2 gap-y-2">
+                  {brandList.map((b) => {
+                    const checked = articleBrandIds.includes(b.id);
+                    return (
+                      <label key={b.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            const on = Boolean(v);
+                            setArticleBrandIds((prev) => {
+                              if (on) {
+                                if (prev.includes(b.id)) return prev;
+                                return [...prev, b.id];
+                              }
+                              return prev.filter((x) => x !== b.id);
+                            });
+                          }}
+                        />
+                        <span>{b.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              {articleBrandIds.length > 0 && (
+                <div className="text-xs text-foreground/60 mt-1">Selected: {articleBrandIds.length}</div>
+              )}
+            </div>
+
             <div className="md:col-span-2">
               <div className="flex items-center justify-between">
                 <label className="block text-sm">Content (optional)</label>
