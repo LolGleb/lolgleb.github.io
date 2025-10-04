@@ -681,6 +681,7 @@ export function AdminPage() {
                 value={content}
                 onChange={(val) => setContent(val)}
                 style={{ minHeight: '16rem' }}
+                imageClassName="inline-block h-64 max-w-[80%] rounded border border-border bg-muted align-middle"
                 onFormatStateChange={(f) => setArticleHeadingLevel(f.headingLevel)}
               />
             </div>
@@ -1127,6 +1128,7 @@ export function AdminPage() {
                       value={s.content}
                       onChange={(val) => updateSub(s.id, 'content', val)}
                       style={{ minHeight: '16rem' }}
+                      imageClassName="inline-block h-64 max-w-[80%] rounded border border-border bg-muted align-middle"
                       onFormatStateChange={(f) => setHeadingLevels((prev) => ({ ...prev, [s.id]: f.headingLevel }))}
                     />
                   </div>

@@ -14,6 +14,7 @@ interface ContentEditorProps {
   className?: string;
   style?: React.CSSProperties;
   onFormatStateChange?: (state: { headingLevel: 0 | 1 | 2 | 3 | 4 | 5 | 6 }) => void;
+  imageClassName?: string; // optional: control thumbnail size in editor
 }
 
 // Utility: escape HTML
@@ -25,8 +26,11 @@ function esc(s: string) {
 }
 
 // Reuse the same minimal markdown we already support in RichContent
-const mdImgRegex = /^!\[(.*?)\]\((\S+?)(?:\s+\"([^\"]+)\")?\)$/; // ![alt](url "title")
+const mdImgRegex = /^!\[(.*?)]\((\S+?)(?:\s+"([^"]+)")?\)$/; // ![alt](url "title")
 const mdHeadingRegex = /^(#{1,6})\s+(.*)$/; // # Heading
+
+// Default class for image thumbnails in the editor (kept small for non-admin usages)
+const DEFAULT_IMG_CLASS = 'inline-block h-16 max-w-[50%] rounded border border-border bg-muted align-middle';
 
 function isImageUrl(url: string): boolean {
   if (!url) return false;
@@ -99,8 +103,9 @@ function parseContentToBlocks(input: string): Array<
   return blocks;
 }
 
-function blocksToHTML(blocks: ReturnType<typeof parseContentToBlocks>): string {
+function blocksToHTML(blocks: ReturnType<typeof parseContentToBlocks>, opts?: { imageClassName?: string }): string {
   // Create block-level divs so caret/enter works predictably
+  const imgClass = opts?.imageClassName || DEFAULT_IMG_CLASS;
   const html = blocks
     .map((b) => {
       if (b.type === 'img') {
@@ -109,7 +114,7 @@ function blocksToHTML(blocks: ReturnType<typeof parseContentToBlocks>): string {
         // Use a consistent image size (thumbnail) but keep responsive width constraints
         return (
           `<div data-block="img" class="rc-block rc-img my-2">` +
-          `<img src="${src}" alt="${alt}" class="inline-block h-16 max-w-[50%] rounded border border-border bg-muted align-middle" />` +
+          `<img src="${src}" alt="${alt}" class="${imgClass}" />` +
           `</div>`
         );
       }
@@ -160,7 +165,7 @@ function serializeHTMLToValue(root: HTMLElement): string {
 }
 
 export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditorProps>(
-  function ContentEditor({ id, value, onChange, placeholder, className, style, onFormatStateChange }, ref) {
+  function ContentEditor({ id, value, onChange, placeholder, className, style, onFormatStateChange, imageClassName }, ref) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const lastExternalValue = useRef<string>('');
     const isComposingRef = useRef(false);
@@ -201,7 +206,7 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
       if (!containerRef.current) return;
       if (value === lastExternalValue.current) return; // no external change
       const blocks = parseContentToBlocks(value);
-      const html = blocksToHTML(blocks);
+      const html = blocksToHTML(blocks, { imageClassName });
       const el = containerRef.current;
       // Preserve scroll position
       const { scrollTop } = el;
@@ -303,7 +308,7 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
           const imageEl = document.createElement('img');
           imageEl.src = img.src;
           if (img.alt) imageEl.alt = img.alt;
-          imageEl.className = 'inline-block h-16 max-w-[50%] rounded border border-border bg-muted align-middle';
+          imageEl.className = imageClassName || DEFAULT_IMG_CLASS;
           wrapper.appendChild(imageEl);
           frag.appendChild(wrapper);
         }
