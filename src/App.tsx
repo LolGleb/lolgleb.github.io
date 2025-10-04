@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { FavoritesProvider } from './contexts/FavoritesContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -31,6 +31,8 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminPage } from './pages/AdminPage';
+import { AdminArticleCreatePage } from './pages/AdminArticleCreatePage';
+import { AdminBrandCreatePage } from './pages/AdminBrandCreatePage';
 
 export default function App() {
   return (
@@ -68,7 +70,11 @@ export default function App() {
               <Route path="/tag/:slug" element={<TagPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/terms" element={<TermsPage />} />
-              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin" element={<Navigate to="/admin/articles" replace />} />
+              <Route path="/admin/articles" element={<AdminPage />} />
+              <Route path="/admin/articles/new" element={<AdminArticleCreatePage />} />
+              <Route path="/admin/brands" element={<AdminPage />} />
+              <Route path="/admin/brands/new" element={<AdminBrandCreatePage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
                   <Footer />

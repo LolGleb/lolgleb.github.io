@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { addArticle, AdminArticle, AdminArticleCategory, deleteArticle, generateId, getAllArticles, updateArticle, getBrandIdsForArticle } from '../db/articlesDb';
 import { addBrand, AdminBrand, deleteBrand as deleteBrandDb, generateBrandId, getAllBrands, updateBrand } from '../db/brandsDb';
 import { Input } from '../components/ui/input';
@@ -79,6 +80,13 @@ export function AdminPage() {
 
   // Subsections tabs
   const [activeTab, setActiveTab] = useState<'articles' | 'brands' | 'moderation'>('articles');
+  const location = useLocation();
+  useEffect(() => {
+    const p = location.pathname || '';
+    if (p.includes('/admin/brands')) setActiveTab('brands');
+    else if (p.includes('/admin/articles')) setActiveTab('articles');
+    else if (p.includes('/admin/moderation')) setActiveTab('moderation');
+  }, [location.pathname]);
 
   const grouped = useMemo(() => {
     const g: Record<AdminArticleCategory, AdminArticle[]> = { News: [], Drops: [], Stories: [] };
@@ -518,6 +526,15 @@ export function AdminPage() {
         <>
           <h2 className="text-2xl mb-6" style={{ fontFamily: 'var(--font-headlines)' }}>Articles</h2>
 
+          {!editingId && (
+            <div className="mb-6 flex items-center justify-end">
+              <Button asChild>
+                <Link to="/admin/articles/new">Create Article</Link>
+              </Button>
+            </div>
+          )}
+
+          {editingId && (
           <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 border border-border rounded-lg p-4 md:p-6 bg-card mb-10">
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Title</label>
@@ -698,6 +715,7 @@ export function AdminPage() {
               </div>
             </div>
           </form>
+          )}
 
           <div className="space-y-8">
             {(['News','Drops','Stories'] as AdminArticleCategory[]).map((cat) => (
@@ -732,6 +750,15 @@ export function AdminPage() {
         <>
           <h2 className="text-2xl mb-6" style={{ fontFamily: 'var(--font-headlines)' }}>Brands</h2>
 
+          {!brandEditingId && (
+            <div className="mb-6 flex items-center justify-end">
+              <Button asChild>
+                <Link to="/admin/brands/new">Create Brand</Link>
+              </Button>
+            </div>
+          )}
+
+          {brandEditingId && (
           <form onSubmit={onSubmitBrand} className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 border border-border rounded-lg p-4 md:p-6 bg-card mb-10">
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Name</label>
@@ -950,6 +977,7 @@ export function AdminPage() {
               </div>
             </div>
           </form>
+          )}
 
           <div className="space-y-8">
             <div>
