@@ -344,7 +344,7 @@ export function BrandsPage() {
         description="Discover the best sock brands from around the world"
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12 space-y-10">
-        <section>
+        <section className="mb-16 lg:mb-20">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl lg:text-4xl" style={{ fontFamily: 'var(--font-headlines)' }}>
               <span style={{ fontStyle: 'italic', color: '#FF00A8' }}>to</span> Brands
@@ -370,6 +370,26 @@ export function BrandsPage() {
               </div>
             )
           )}
+        </section>
+
+        {/* Spacer to ensure visible gap between grid and CTA */}
+        <div className="h-12 lg:h-16" aria-hidden="true"></div>
+        {/* UGC Submit (Call-to-action) */}
+        <section className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-8 text-center">
+          <div className="max-w-2xl mx-auto space-y-4">
+            <h3 className="text-lg text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>
+              Don't see your brand? Submit it here.
+            </h3>
+            <Button
+              asChild
+              className="bg-[#FF00A8] hover:bg-[#FF00A8]/90 text-white px-8 py-6 text-base"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <Link to="/brand/submit">
+                Submit Brand
+              </Link>
+            </Button>
+          </div>
         </section>
       </div>
     </div>

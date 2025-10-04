@@ -9,6 +9,7 @@ import { Image as ImageIcon, Heading2, Heading3 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { ArticleSubmission, getPendingSubmissions, updateSubmission, approveSubmission, declineSubmission, deleteSubmission } from '../db/submissionsDb';
+import { BrandSubmission, getPendingBrandSubmissions, updateBrandSubmission, approveBrandSubmission, declineBrandSubmission, deleteBrandSubmission } from '../db/brandSubmissionsDb';
 import { toast } from 'sonner@2.0.3';
 
 export function AdminPage() {
@@ -52,6 +53,7 @@ export function AdminPage() {
 
   // Moderation state
   const [pendingSubs, setPendingSubs] = useState<ArticleSubmission[]>([]);
+  const [pendingBrandSubs, setPendingBrandSubs] = useState<BrandSubmission[]>([]);
   const [modError, setModError] = useState<string | null>(null);
   const [modSavingId, setModSavingId] = useState<string | null>(null);
   const [headingLevels, setHeadingLevels] = useState<Record<string, number>>({});
@@ -105,8 +107,17 @@ export function AdminPage() {
     setPendingSubs(all);
   }
 
+  async function refreshBrandSubmissions() {
+    const all = await getPendingBrandSubmissions();
+    setPendingBrandSubs(all);
+  }
+
   function updateSub<K extends keyof ArticleSubmission>(id: string, key: K, value: ArticleSubmission[K]) {
     setPendingSubs((prev) => prev.map((s) => (s.id === id ? { ...s, [key]: value } : s)));
+  }
+
+  function updateBrandSub<K extends keyof BrandSubmission>(id: string, key: K, value: BrandSubmission[K]) {
+    setPendingBrandSubs((prev) => prev.map((s) => (s.id === id ? { ...s, [key]: value } : s)));
   }
 
   async function saveSubmission(sub: ArticleSubmission) {
@@ -176,11 +187,80 @@ export function AdminPage() {
     }
   }
 
+  // Brand submissions moderation helpers
+  async function saveBrandSubmission(sub: BrandSubmission) {
+    setModError(null);
+    try {
+      setModSavingId(sub.id);
+      await updateBrandSubmission(sub);
+      toast.success('Brand submission saved');
+    } catch (e) {
+      console.error(e);
+      setModError('Failed to save brand submission');
+      toast.error('Failed to save brand submission');
+    } finally {
+      setModSavingId(null);
+    }
+  }
+
+  async function publishBrandSubmission(sub: BrandSubmission) {
+    setModError(null);
+    try {
+      setModSavingId(sub.id);
+      await approveBrandSubmission(sub);
+      toast.success('Brand approved and published');
+      await refreshBrandSubmissions();
+      await refreshBrands();
+    } catch (e) {
+      console.error(e);
+      setModError('Failed to approve brand');
+      toast.error('Failed to approve brand');
+    } finally {
+      setModSavingId(null);
+    }
+  }
+
+  async function declineBrandSubmissionWithComment(sub: BrandSubmission) {
+    setModError(null);
+    const comment = (sub.moderationComment || '').trim();
+    if (!comment) {
+      toast.error('Please add a comment before declining');
+      return;
+    }
+    try {
+      setModSavingId(sub.id);
+      await declineBrandSubmission(sub, comment);
+      toast.success('Brand submission declined');
+      await refreshBrandSubmissions();
+    } catch (e) {
+      console.error(e);
+      setModError('Failed to decline brand submission');
+      toast.error('Failed to decline brand submission');
+    } finally {
+      setModSavingId(null);
+    }
+  }
+
+  async function removeBrandSubmission(id: string) {
+    try {
+      setModSavingId(id);
+      await deleteBrandSubmission(id);
+      setPendingBrandSubs((prev) => prev.filter((s) => s.id !== id));
+      toast.success('Brand submission deleted');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to delete brand submission');
+    } finally {
+      setModSavingId(null);
+    }
+  }
+
   useEffect(() => {
     if (adminAuthed) {
       refreshList();
       refreshBrands();
       refreshSubmissions();
+      refreshBrandSubmissions();
     }
   }, [adminAuthed]);
 
@@ -904,11 +984,14 @@ export function AdminPage() {
         <>
           <h2 className="text-2xl mb-6" style={{ fontFamily: 'var(--font-headlines)' }}>Moderation</h2>
           {modError && <div className="text-red-500 text-sm mb-4">{modError}</div>}
-          {pendingSubs.length === 0 ? (
-            <p className="text-sm text-foreground/60">No pending submissions</p>
-          ) : (
-            <div className="space-y-6">
-              {pendingSubs.map((s) => (
+          <div className="space-y-10">
+            <section>
+              <h3 className="text-xl mb-3" style={{ fontFamily: 'var(--font-headlines)' }}>Article submissions</h3>
+              {pendingSubs.length === 0 ? (
+                <p className="text-sm text-foreground/60">No pending article submissions</p>
+              ) : (
+                <div className="space-y-6">
+                  {pendingSubs.map((s) => (
                 <div key={s.id} className="border border-border rounded-lg p-4 bg-card space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-foreground/60">From: <span className="font-medium text-foreground">{s.authorName}</span> • {new Date(s.createdAt).toLocaleString()}</div>
@@ -1063,6 +1146,68 @@ export function AdminPage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section>
+          <h3 className="text-xl mb-3" style={{ fontFamily: 'var(--font-headlines)' }}>Brand submissions</h3>
+          {pendingBrandSubs.length === 0 ? (
+            <p className="text-sm text-foreground/60">No pending brand submissions</p>
+          ) : (
+            <div className="space-y-6">
+              {pendingBrandSubs.map((b) => (
+                <div key={b.id} className="border border-border rounded-lg p-4 bg-card space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-foreground/60">From: <span className="font-medium text-foreground">{b.authorName}</span> • {new Date(b.createdAt).toLocaleString()}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-600 border border-yellow-500/30">Pending</div>
+                      <Button size="sm" className="bg-[#FF00A8] hover:bg-[#FF00A8]/90 text-white" onClick={() => publishBrandSubmission(b)} disabled={modSavingId === b.id}>Approve</Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm mb-1">Name</label>
+                      <Input value={b.name} onChange={(e) => updateBrandSub(b.id, 'name', e.target.value)} />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm mb-1">Website</label>
+                      <Input value={b.website || ''} onChange={(e) => updateBrandSub(b.id, 'website', e.target.value)} placeholder="https://brand.com" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm mb-1">Description</label>
+                      <Textarea value={b.description || ''} onChange={(e) => updateBrandSub(b.id, 'description', e.target.value)} rows={3} />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1">Tags (comma-separated)</label>
+                      <Input value={(b.tags || []).join(', ')} onChange={(e) => updateBrandSub(b.id, 'tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="Streetwear, Performance, ..." />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1">Made In (comma-separated)</label>
+                      <Input value={(b.madeIn || []).join(', ')} onChange={(e) => updateBrandSub(b.id, 'madeIn', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="USA, Italy" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm mb-1">Price Range (comma-separated)</label>
+                      <Input value={(b.priceRange || []).join(', ')} onChange={(e) => updateBrandSub(b.id, 'priceRange', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="$, $$, $$$" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm mb-1">Moderator comment (for decline)</label>
+                    <Textarea value={b.moderationComment || ''} onChange={(e) => updateBrandSub(b.id, 'moderationComment', e.target.value)} rows={3} />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => saveBrandSubmission(b)} disabled={modSavingId === b.id}>{modSavingId === b.id ? 'Saving…' : 'Save'}</Button>
+                    <Button size="sm" className="bg-[#FF00A8] hover:bg-[#FF00A8]/90 text-white" onClick={() => publishBrandSubmission(b)} disabled={modSavingId === b.id}>Approve & Publish</Button>
+                    <Button size="sm" variant="destructive" onClick={() => declineBrandSubmissionWithComment(b)} disabled={modSavingId === b.id}>Decline</Button>
+                    <Button size="sm" variant="secondary" onClick={() => removeBrandSubmission(b.id)} disabled={modSavingId === b.id}>Delete</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+          </div>
         </>
       )}
     </div>

@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { Checkbox } from '../components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { toast } from 'sonner@2.0.3';
+import { addBrandSubmission, generateSubmissionId, type BrandSubmission as DbBrandSubmission } from '../db/brandSubmissionsDb';
 
 const BRAND_CATEGORIES = [
   'Performance Athletic',
@@ -56,30 +57,6 @@ const SUBMISSION_STATUS = [
   'pending', 'reviewing', 'approved', 'rejected'
 ];
 
-interface BrandSubmission {
-  id: string;
-  brandName: string;
-  categories: string[];
-  description: string;
-  about: string;
-  founded?: number;
-  headquarters?: string;
-  madeIn?: string;
-  contacts: { [key: string]: string };
-  priceRange: string[];
-  logo?: string;
-  heroImage?: string;
-  referralProgram: {
-    hasProgram: 'yes-link' | 'yes-contact' | 'no';
-    link?: string;
-    email?: string;
-  };
-  whereToBuy: { [key: string]: string };
-  submittedBy: string;
-  status: string;
-  submittedAt: string;
-  notes?: string;
-}
 
 export function BrandSubmitPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,35 +114,25 @@ export function BrandSubmitPage() {
     setIsSubmitting(true);
 
     try {
-      // Mock submission - в реальном приложении отправляем на сервер
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const submission: BrandSubmission = {
-        id: 'sub-' + Date.now(),
-        brandName: formData.brandName,
-        categories: formData.categories,
-        description: formData.description,
-        about: formData.about,
-        founded: formData.founded ? parseInt(formData.founded) : undefined,
-        headquarters: formData.headquarters || undefined,
-        madeIn: formData.madeIn || undefined,
-        contacts: formData.contacts,
+      const submission: DbBrandSubmission = {
+        id: generateSubmissionId(),
+        name: (formData.brandName || '').trim(),
+        description: (formData.about || formData.description || '').trim(),
+        website: (formData.contacts['website'] || '').trim() || undefined,
+        tags: formData.categories,
+        madeIn: formData.madeIn ? [formData.madeIn] : undefined,
         priceRange: formData.priceRange,
-        logo: formData.logo ? URL.createObjectURL(formData.logo) : undefined,
-        heroImage: formData.heroImage ? URL.createObjectURL(formData.heroImage) : undefined,
-        referralProgram: formData.referralProgram,
-        whereToBuy: formData.whereToBuy,
-        submittedBy: currentUser?.id || 'anonymous',
+        authorId: currentUser?.id || 'anonymous',
+        authorName: currentUser?.name || 'Anonymous',
+        authorEmail: currentUser?.email || undefined,
+        createdAt: new Date().toISOString(),
         status: 'pending',
-        submittedAt: new Date().toISOString(),
-        notes: formData.reasonForSubmission
       };
 
-      console.log('Brand submission:', submission);
-      
+      await addBrandSubmission(submission);
       setSubmitted(true);
       toast.success('Brand submitted successfully!', {
-        description: 'We\'ll review your submission and get back to you within 3-5 business days.'
+        description: "We'll review your submission and get back to you within 3-5 business days."
       });
 
     } catch (error) {
@@ -698,10 +665,10 @@ export function BrandSubmitPage() {
                     onValueChange={(value: 'yes-link' | 'yes-contact' | 'no') => handleReferralProgramChange(value)}
                   >
                     <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="yes-link" id="referral-yes-link" />
+                      <div className="flex items-center space-x-3">
+                        <RadioGroupItem value="yes-link" id="referral-yes-link" className="h-5 w-5 text-[#FF00A8]" />
                         <Label htmlFor="referral-yes-link" className="text-sm font-normal cursor-pointer">
-                          ✅ Yes, here's a link
+                          Yes — provide link
                         </Label>
                       </div>
                       
@@ -713,13 +680,14 @@ export function BrandSubmitPage() {
                             placeholder="https://brandname.com/affiliates"
                             type="url"
                           />
+                          <p className="text-xs text-foreground/60">Paste the public page for your affiliate/referral program.</p>
                         </div>
                       )}
 
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="yes-contact" id="referral-yes-contact" />
+                      <div className="flex items-center space-x-3">
+                        <RadioGroupItem value="yes-contact" id="referral-yes-contact" className="h-5 w-5 text-[#FF00A8]" />
                         <Label htmlFor="referral-yes-contact" className="text-sm font-normal cursor-pointer">
-                          ✅ Yes, contact me
+                          Yes — contact me
                         </Label>
                       </div>
                       
@@ -731,13 +699,14 @@ export function BrandSubmitPage() {
                             placeholder="partnerships@brandname.com"
                             type="email"
                           />
+                          <p className="text-xs text-foreground/60">We’ll reach out to this email to discuss partnership details.</p>
                         </div>
                       )}
 
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="no" id="referral-no" />
+                      <div className="flex items-center space-x-3">
+                        <RadioGroupItem value="no" id="referral-no" className="h-5 w-5 text-[#FF00A8]" />
                         <Label htmlFor="referral-no" className="text-sm font-normal cursor-pointer">
-                          ❌ No
+                          No
                         </Label>
                       </div>
                     </div>
