@@ -236,7 +236,7 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
       const el = containerRef.current;
       if (!el) return;
       if (e.key === 'Enter') {
-        // Shift+Enter => soft line break
+        // Shift+Enter => soft line break inside the current block
         if (e.shiftKey) {
           e.preventDefault();
           document.execCommand('insertHTML', false, '<br>');
@@ -244,12 +244,20 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
           handleInput();
           return;
         }
-        // Enter => create a new paragraph block after the current block
+        // Default Enter => split current block at caret and move the right part to a new paragraph
         e.preventDefault();
         const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        const range = sel.getRangeAt(0);
+
+        // If some text is selected, delete it first to collapse the range
+        if (!range.collapsed) {
+          range.deleteContents();
+        }
+
+        // Find the current rc-block element
         let anchorBlock: HTMLElement | null = null;
-        if (sel && sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
+        {
           let node: Node | null = range.startContainer;
           while (node && node !== el) {
             if (node instanceof HTMLElement && node.classList.contains('rc-block')) {
@@ -259,22 +267,72 @@ export const ContentEditor = React.forwardRef<ContentEditorHandle, ContentEditor
             node = node.parentNode;
           }
         }
-        const p = document.createElement('div');
-        p.setAttribute('data-block', 'p');
-        p.className = 'rc-block rc-p whitespace-pre-wrap';
-        p.innerHTML = '<br>';
-        if (anchorBlock && anchorBlock.parentElement) {
-          anchorBlock.parentElement.insertBefore(p, anchorBlock.nextSibling);
-        } else {
+
+        // Fallback: if we can't find a block, append a new empty paragraph
+        if (!anchorBlock) {
+          const p = document.createElement('div');
+          p.setAttribute('data-block', 'p');
+          p.className = 'rc-block rc-p whitespace-pre-wrap';
+          p.innerHTML = '<br>';
           el.appendChild(p);
+          const r = document.createRange();
+          r.selectNodeContents(p);
+          r.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(r);
+          handleInput();
+          return;
         }
-        // Move caret into the new paragraph
-        const range = document.createRange();
-        range.selectNodeContents(p);
-        range.collapse(true);
-        const sel2 = window.getSelection();
-        sel2?.removeAllRanges();
-        sel2?.addRange(range);
+
+        const kind = anchorBlock.getAttribute('data-block');
+
+        // If we're on an image block, just insert a new paragraph below it
+        if (kind === 'img') {
+          const p = document.createElement('div');
+          p.setAttribute('data-block', 'p');
+          p.className = 'rc-block rc-p whitespace-pre-wrap';
+          p.innerHTML = '<br>';
+          anchorBlock.parentElement!.insertBefore(p, anchorBlock.nextSibling);
+          const r = document.createRange();
+          r.selectNodeContents(p);
+          r.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(r);
+          handleInput();
+          return;
+        }
+
+        // Split the current block at the caret
+        const rightRange = document.createRange();
+        rightRange.setStart(sel.anchorNode as Node, sel.anchorOffset);
+        rightRange.setEnd(anchorBlock, anchorBlock.childNodes.length);
+        const rightFrag = rightRange.extractContents();
+
+        // Ensure left block isn't empty (keep a <br> so caret stays visible)
+        if (!anchorBlock.textContent || anchorBlock.innerHTML.trim() === '') {
+          anchorBlock.innerHTML = '<br>';
+        }
+
+        // Create the new block; for headings, the next line becomes a paragraph
+        const newBlock = document.createElement('div');
+        newBlock.setAttribute('data-block', 'p');
+        newBlock.className = 'rc-block rc-p whitespace-pre-wrap';
+        if (rightFrag.childNodes.length === 0) {
+          newBlock.innerHTML = '<br>';
+        } else {
+          newBlock.appendChild(rightFrag);
+        }
+
+        // Insert the new block after the current one
+        anchorBlock.parentElement!.insertBefore(newBlock, anchorBlock.nextSibling);
+
+        // Move caret to the start of the new block
+        const newRange = document.createRange();
+        newRange.selectNodeContents(newBlock);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+
         handleInput();
       }
     };
