@@ -254,7 +254,7 @@ export function AdminArticleCreatePage() {
         <div className="md:col-span-2">
           <div className="flex items-center justify-between">
             <label className="block text-sm">Content (optional)</label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" data-editor-static-controls="content">
               <input
                 id="articleContentImageFiles"
                 type="file"
@@ -311,6 +311,7 @@ export function AdminArticleCreatePage() {
             style={{ minHeight: '16rem' }}
             imageClassName="inline-block h-64 max-w-[80%] rounded border border-border bg-muted align-middle"
             onFormatStateChange={(f) => setArticleHeadingLevel(f.headingLevel)}
+            toolbarHideWhenVisibleSelector='[data-editor-static-controls="content"]'
           />
         </div>
 

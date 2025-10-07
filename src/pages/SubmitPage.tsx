@@ -242,7 +242,7 @@ export function SubmitPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="content">Write your story</Label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" data-editor-static-controls="content">
                       <input
                         id="contentImageFiles"
                         type="file"
@@ -299,6 +299,7 @@ export function SubmitPage() {
                     onChange={(val) => setArticleForm(prev => ({ ...prev, content: val }))}
                     style={{ minHeight: '16rem' }}
                     onFormatStateChange={(f) => setHeadingLevel(f.headingLevel)}
+                    toolbarHideWhenVisibleSelector='[data-editor-static-controls="content"]'
                   />
                   <p className="text-xs text-foreground/60">
                     Tip: Include personal experiences, specific details, and your unique perspective.
